@@ -1,3 +1,10 @@
+// A driver to run Fast Randomized Iteration
+// applied to computing the dominant
+// eigenvalue (the partiction function)
+// of the transfer matrix associated with
+// the 2D Ising model
+// (c) Jonathan Weare 2015
+
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
