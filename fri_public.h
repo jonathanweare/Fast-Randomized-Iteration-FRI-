@@ -1,5 +1,5 @@
 // declaration of generic Fast Randomized Iteration
-// subroutinesl
+// subroutines
 // (c) Jonathan Weare 2015
 
 #ifndef _fri_public_h_
