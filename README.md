@@ -5,7 +5,7 @@ A simple example in C++ of FRI applied to computing the dominant eigenvalue of a
 ---
 #### Algorithm
 
-[Fast Randomized Iteration (FRI)](http://arxiv.org/abs/1207.2866) is a recent randomization approach to certain problems in numerical linear algebra proposed by [Lek-Heng Lim](http://www.stat.uchicago.edu/~lekheng/) and [Jonathan Weare](http://www.stat.uchicago.edu/~weare/). It is useful for eigenproblems, linear system solves, and matrix exponentiation, for example, in dimensions so large that even the solution vector itself cannot be stored.  In the constant cost (in the size of the matrix) per iteration variant exemplified here it estimates low dimensional projections of the solution rather than the full solution vector.
+[Fast Randomized Iteration (FRI)](http://arxiv.org/abs/1508.06104) is a recent randomization approach to certain problems in numerical linear algebra proposed by [Lek-Heng Lim](http://www.stat.uchicago.edu/~lekheng/) and [Jonathan Weare](http://www.stat.uchicago.edu/~weare/). It is useful for eigenproblems, linear system solves, and matrix exponentiation, for example, in dimensions so large that even the solution vector itself cannot be stored.  In the constant cost (in the size of the matrix) per iteration variant exemplified here it estimates low dimensional projections of the solution rather than the full solution vector.
 
 ---
 #### This Code
