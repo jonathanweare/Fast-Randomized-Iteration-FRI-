@@ -7,7 +7,7 @@
 using namespace std;
 
 
-// a subroutine that returns the ii-th column of the matrix of interest
+// a subroutine that returns the ii-th column of the transfer matrix of the 2D Ising model
 int transfer(spentry<double> *col, long *nrows, long ii){
 
   int n = 50;
