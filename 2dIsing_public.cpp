@@ -7,6 +7,7 @@
 using namespace std;
 
 
+// a subroutine that returns the ii-th column of the matrix of interest
 int transfer(spentry<double> *col, long *nrows, long ii){
 
   int n = 50;
@@ -69,22 +70,25 @@ int transfer(spentry<double> *col, long *nrows, long ii){
 int main()
 {
 
-  long Nit = 10000;
-  long Brn = 500;
-  long m = (long)1<<24;
-  long bw = 2;
+  long Nit = 10000;              // number of iterations after burn in
+  long Brn = 500;                // number of burn in iterations (these are not included in trajectory averages)
+  long m = (long)1<<24;          // compression parameter (after compression vectors have no more than m non-zero entries)
+  long bw = 2;                   // upper bound on the number of entries in each column of matrix
 
   long nv, nvnew, t, jj;
   double vsum, lambda=0, eps;
+  
+  // The struct spentry is declared in fri_public.h and contains a value and an index.  
+  // A sparse vector v is stored as an integer (say nv) along with an array with elements of type spentry.
 
-  spentry<double> *v = new spentry<double>[bw*m];
-  spentry<double> *vnew = new spentry<double>[bw*m]; 
+  spentry<double> *v = new spentry<double>[bw*m];            // v is the current iterate
+  spentry<double> *vnew = new spentry<double>[bw*m];         // vnew is the updeated iterate
 
   for (jj=0;jj<bw*m;jj++)
     vnew[jj].loc = -1;
   nvnew = 1;
 
-  nv = 1;
+  nv = 1;                                                    // initial vector
   v[0].val = 1.0;
   v[0].loc = 0;
 
@@ -102,7 +106,7 @@ int main()
 
 
   
-
+// run Brn iterations without accumulating trajectory averages to discard initial transient
   for (t=0;t<Brn;t++){
 
     start = clock();
@@ -128,7 +132,7 @@ int main()
 
 
 
-  
+// generate a trajectory of Nit iterations and accumulate trajectory averages  
   for (t=0;t<Nit;t++){
 
     eps = 1.0/(1.0+t);
