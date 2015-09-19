@@ -1,3 +1,12 @@
+// A simple and somewhat generic implementation of Fast
+// Randomized Iteration (FRI) as introduced by
+// Lim and Weare.
+// Meant for educational purposes.
+// If you use this code please cite it by its
+// DOI on Github and Zenodo; find it in the README 
+// of www.github.com/jonathanweare/Fast-Randomized-Iteration-FRI- .
+// (c) Jonathan Weare 2015
+
 #include <iostream> 
 #include <cstdlib>
 #include <cmath>
