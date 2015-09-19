@@ -14,4 +14,4 @@ This repo provides a simple C++11 implementation of an FRI algorithm to find the
 
 Along with the algorithm code, the repo also contains a copy of the Lim and Weare ArXiv paper introducing Fast Randomized Iteration. Try the example and experiment.  Comments welcome!
 
-If you use the code please cite it using the DOI above.
+If you use the code please cite this repository using the DOI above.
