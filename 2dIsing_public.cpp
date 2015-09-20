@@ -14,7 +14,8 @@
 using namespace std;
 
 
-// a subroutine that returns the ii-th column of the transfer matrix of the 2D Ising model
+// a subroutine that returns the ii-th column of
+// the transfer matrix of the 2D Ising model
 int transfer(spentry<double> *col, long *nrows, long ii){
 
   int n = 50;
@@ -77,19 +78,27 @@ int transfer(spentry<double> *col, long *nrows, long ii){
 int main()
 {
 
-  long Nit = 10000;              // number of iterations after burn in
-  long Brn = 500;                // number of burn in iterations (these are not included in trajectory averages)
-  long m = (long)1<<24;          // compression parameter (after compression vectors have no more than m non-zero entries)
-  long bw = 2;                   // upper bound on the number of entries in each column of matrix
+  long Nit = 100;        // number of iterations after burn in
+  
+  long Brn = 100;          // number of burn in iterations (these
+                         // are not included in trajectory averages)
+  
+  long m = (long)1<<15;  // compression parameter (after compression vectors have
+                         // no more than m non-zero entries)
+  
+  long bw = 2;           // upper bound on the number of entries in each
+                         // column of matrix
 
   long nv, nvnew, t, jj;
   double vsum, lambda=0, eps;
   
-  // The struct spentry is declared in fri_public.h and contains a value and an index.  
-  // A sparse vector v is stored as an integer (say nv) along with an array with elements of type spentry.
+  // The struct spentry is declared in fri_public.h
+  // and contains a value and an index.  
+  // A sparse vector v is stored as an integer (say nv)
+  // along with an array with elements of type spentry.
 
-  spentry<double> *v = new spentry<double>[bw*m];            // v is the current iterate
-  spentry<double> *vnew = new spentry<double>[bw*m];         // vnew is the updeated iterate
+  spentry<double> *v = new spentry<double>[bw*m];      // v is the current iterate
+  spentry<double> *vnew = new spentry<double>[bw*m];   // vnew is the updeated iterate
 
   for (jj=0;jj<bw*m;jj++)
     vnew[jj].loc = -1;
@@ -113,7 +122,8 @@ int main()
 
 
   
-// run Brn iterations without accumulating trajectory averages to discard initial transient
+  // run Brn iterations without accumulating trajectory
+  // averages to discard initial transient
   for (t=0;t<Brn;t++){
 
     start = clock();
@@ -132,7 +142,7 @@ int main()
       v[jj] = vnew[jj];
     nv = nvnew;
 
-    printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t elapsed time: %lf\n",
+    printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
 	   t+1, vsum, nv, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
@@ -163,7 +173,7 @@ int main()
       v[jj] = vnew[jj];
     nv = nvnew;
 
-    printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t elapsed time: %lf\n",
+    printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
 	   t+1, vsum, lambda, nv, ((double)end - start)/CLOCKS_PER_SEC);
     
   }

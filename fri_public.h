@@ -6,8 +6,10 @@
 #define _fri_public_h_
 
 
-// The struct spentry is declared in fri_public.h and contains a value and an index.  
-// A sparse vector v is stored as an integer (say nv) along with an array with elements of type spentry
+// The struct spentry is declared in fri_public.h
+// and contains a value and an index.  
+// A sparse vector v is stored as an integer (say nv)
+// along with an array with elements of type spentry
 
 template <typename Type>
 struct spentry{
@@ -36,7 +38,7 @@ int spcomparebyloc( Type& a, Type& b);
 template <typename Type>
 int spcomparebyval( Type& a, Type& b);
 
-int compress(double *y, long L, long n);
+int compress(spentry<double> *y, long ny, long n);
 
 template <typename Type>
 int heapsort(Type *base, long L, int (*compr)(Type& a, Type& b));

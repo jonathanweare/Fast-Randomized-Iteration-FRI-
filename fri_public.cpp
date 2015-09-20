@@ -20,8 +20,10 @@ using namespace std;
 
 
 
-// sparse_daxpy computes y <-- alpha x + y where x and y are sparse vectors with real valued entries
-// y is assumed to be the first ny entries of an array of length nx + ny.  y is overwritten
+// sparse_daxpy computes y <-- alpha x + y where
+// x and y are sparse vectors with real valued entries
+// y is assumed to be the first ny entries of an
+// array of length nx + ny.  y is overwritten
 // on output.
 int sparse_daxpy(double alpha,
 		 spentry<double> *x, long *nx,
@@ -65,10 +67,14 @@ int sparse_daxpy(double alpha,
 }
 
 
-// sparse_dgemv computes y <-- alpha A x + beta y where x and y are sparse vectors with real entries
-// and the matrix A is specified by a routine Acolumn that returns a single column of A.  bw is an
-// upper bound on the number of non-zero entries in any column of A.  y is
-// assumed to be the first ny entries in an array of length ny + bw nx.  y is overwritten upon output.
+// sparse_dgemv computes y <-- alpha A x + beta y
+// where x and y are sparse vectors with real entries
+// and the matrix A is specified by a routine Acolumn
+// that returns a single column of A.  bw is an
+// upper bound on the number of non-zero entries in
+// any column of A.  y is
+// assumed to be the first ny entries in an array of
+// length ny + bw nx.  y is overwritten upon output.
 int sparse_dgemv(double alpha,
 		int (*Acolumn)(spentry<double> *col, long *nrows, long jj),
 		long bw, spentry<double> *x, long *nx, double beta,
@@ -91,7 +97,8 @@ int sparse_dgemv(double alpha,
     nw = 0;
   }
 
-  // make a list of all the entries in A scaled by the entry of x corresponding to the column
+  // make a list of all the entries in A scaled
+  // by the entry of x corresponding to the column
   // containing the particular entry of A.
   for (jj=0;jj<*nx;jj++){
     Acolumn(a1,&na1,x[jj].loc);
@@ -105,7 +112,8 @@ int sparse_dgemv(double alpha,
   // sort the list according to their indices
   heapsort(y,nw,spcomparebyloc);
 
-  // sum values corresponding to like indices and collapse the list so the indices are unique.
+  // sum values corresponding to like indices
+  // and collapse the list so the indices are unique.
   *ny = 0;
   jj = 0;
   while (jj < nw){
@@ -128,62 +136,72 @@ int sparse_dgemv(double alpha,
 
 
 
-// dscompatmult first compresses (with parameter m) the input vector x and then calls
-// sparse_dgemv
+// dscompatmult first compresses (with parameter m)
+// the input vector x and then calls sparse_dgemv
 int dspcompmatmult(long m, double alpha,
 		  int (*Acolumn)(spentry<double> *col, long *nrows, long jj),
 		  long bw, spentry<double> *x, long *nx,double beta,
 		  spentry<double> *y, long *ny)
 {
   
-  long jj, nx2 = 0;
-  
-  double *xcopy;
-  xcopy = (double*)malloc((*nx)*sizeof(double));
-  if (!xcopy) {
+  long jj, ii, nx2 = 0;
+
+  spentry<double> *xabs;
+  xabs = (spentry<double>*)malloc((*nx)*sizeof(spentry<double>));
+  if (!xabs) {
     std::cerr << "Memory cannot be allocated\n";
     return 1; //raise MemoryError()
   }
 
-  // store the modulus of the values of x in xcopy
-  for (jj=0;jj<*nx;jj++)
-    xcopy[jj] = fabs(x[jj].val);
+  // compress takes the modulus of the entries in x.
+  // It may rearrange the entries in x so
+  // an index is added to keep track of the rearrangement.
+  for (jj=0;jj<*nx;jj++){
+    xabs[jj].val = fabs(x[jj].val);
+    xabs[jj].loc = jj;
+  }
 
-  // spentry<double> *xabs;
-  // xabs = (spentry<double>*)malloc((*nx)*sizeof(spentry<double>));
-  // if (!xabs) {
-  //   std::cerr << "Memory cannot be allocated\n";
-  //   return 1; //raise MemoryError()
-  // }
+  // printf("%ld\n",*nx);
+  // for (jj=0;jj<*nx;jj++)
+  //   printf("%lf\t %ld\n",x[jj].val, x[jj].loc);
 
-  // for (jj=0;jj<*nx;jj++){
-  //   xabs[jj].val = fabs(x[jj].val);
-  //   xabs[jj].loc = jj;
-  // }
+  // compress xcopy, i.e. randomly set entris of x
+  // to zero using the compress routine
+  compress( xabs , *nx, m);
 
-  // compress xcopy, i.e. randomly set entris of x to zero using the compress routine
-  compress( xcopy , *nx , m);
-
-  // write the resulting compressed vector back into x, omitting entries that have been set to zero.
+  // write the resulting compressed vector back into x
   for(jj=0;jj<*nx;jj++){
-    if(xcopy[jj]!=0){
-      if(x[jj].val>0)
-	x[nx2].val = xcopy[jj];
-      else if (x[jj].val<0)
-	x[nx2].val = -xcopy[jj];
-      else
-	printf("why does x have zero entries\n");
-      x[nx2].loc = x[jj].loc;
+    ii = xabs[jj].loc; 
+    if(x[ii].val>0)
+      x[ii].val = xabs[jj].val;
+    else if (x[ii].val<0)
+      x[ii].val = -xabs[jj].val;
+    else
+      printf("why does x have entries equal to zero\n");
+  }
+
+  // printf("\n");
+
+  // for (jj=0;jj<*nx;jj++)
+  //   printf("%lf\t %ld\n",x[jj].val, x[jj].loc);
+
+  // printf("\n\n");
+
+  // remove the zero entries
+  for(jj=0;jj<*nx;jj++){
+    if (x[jj].val != 0){
+      x[nx2] = x[jj];
       nx2++;
     }
   }
 
   *nx = nx2;
 
-  // apply matrix vector multiplication with compressed x in place of original x
+  // apply matrix vector multiplication with
+  // compressed x in place of original x
   sparse_dgemv(alpha, Acolumn, bw, x, nx, beta, y, ny);
 	  
-  free(xcopy);
+  free(xabs);
 
   return 0;
 }
@@ -206,7 +224,8 @@ int heapsort(Type *base, long L, int (*compr)(Type& a, Type& b))
   return 0;
 }
 
-// rearrange the entries in base so that they form a max heap.  comparison is generic and is
+// rearrange the entries in base so that they
+// form a max heap.  comparison is generic and is
 // handled by the compr input function.
 template <typename Type>
 int heapify(Type *base, long L, int (*compr)(Type& a, Type& b))
@@ -227,7 +246,8 @@ int heapify(Type *base, long L, int (*compr)(Type& a, Type& b))
   return 0;
 }
 
-// puts the largest entry in base (the root) at the end of base and re-heapifies the rest of the entries
+// puts the largest entry in base (the root) at the
+// end of base and re-heapifies the rest of the entries
 template <typename Type>
 int pullroot(Type *base, long L, int (*compr)(Type& a, Type& b))
 {
@@ -285,8 +305,10 @@ int spcomparebyloc( Type& a, Type& b){
 }
 
 
-// use as compr argument when you want to sort an array of spentry elements according to the
-// element values.  If spentry values use a custom type make sure < and > are overloaded for that type.
+// use as compr argument when you want to sort
+// an array of spentry elements according to the
+// element values.  If spentry values use a custom
+// type make sure < and > are overloaded for that type.
 template <typename Type>
 int spcomparebyval( Type& a, Type& b){
 
@@ -299,9 +321,14 @@ int spcomparebyval( Type& a, Type& b){
 
 
 
-// compress a vector of real entries of length L.  n is the compression parameter.
-// for this scheme the compressed vector will have n or fewer non-zero entries.
-int compress( double *y , long L , long n) {
+// compress a vector of real entries of
+// length ny.  n is the compression parameter.
+// for this scheme the compressed vector will
+// have n or fewer non-zero entries.
+// compress may re-order the entries of the
+// input vector so we input an spentry type
+// type array to keep track.
+int compress( spentry<double> *y , long ny , long n) {
   
   double nrm1, r;
   long ii, nz;
@@ -311,18 +338,19 @@ int compress( double *y , long L , long n) {
   static std::mt19937_64 gen(rd());
   static std::uniform_real_distribution<> uu(0, 1);
 
-  // first make sure y really has more than n non-zero entries
+  // first make sure y really has more
+  // than n non-zero entries
   nrm1 = 0;
-  nz = L;
-  for (ii=0;ii<L;ii++) {
-    if (y[ii]<0) {
+  nz = ny;
+  for (ii=0;ii<ny;ii++) {
+    if (y[ii].val<0) {
       std::cerr << "In compressHybrid y argument should have positive entries\n";
       return 1;
     }
-    else if (y[ii]==0)
+    else if (y[ii].val==0)
       nz -= 1;
     else
-      nrm1 += y[ii];
+      nrm1 += y[ii].val;
   }
     
   if (nz<=n)
@@ -330,100 +358,80 @@ int compress( double *y , long L , long n) {
     
   long jj, kk, mm, imax;
   double w, dmax;
-
-  // this vector of spentry elements is just to keep track of some element rearrangement that
-  // occurs below.
-  spentry<double>* yheap;
-  yheap = (spentry<double>*)malloc(L*sizeof(spentry<double>));
-  if (!yheap) {
-    std::cerr << "Memory cannot be allocated\n";
-    return 1; //raise MemoryError()
-  }  
-    
-  for (ii=0;ii<L;ii++){
-    yheap[ii].val = y[ii];
-    yheap[ii].loc = ii;
-  }
         
   dmax = 0;
-  for (ii=0;ii<L;ii++)
-    if (y[ii]>dmax) {
+  for (ii=0;ii<ny;ii++)
+    if (y[ii].val>dmax) {
       imax = ii;
-      dmax = y[ii];
+      dmax = y[ii].val;
     }
 
-  std::swap( yheap[L-1], yheap[imax]);
+  std::swap( y[ny-1], y[imax]);
 
   mm = 0;
   r = nrm1;
 
-  // check if there are any elements large enough to be preserved exactly.  If so heapify
-  // and pull large entries untill remaining entries are not large enough to be preserved exactly.
+  // check if there are any elements large
+  // enough to be preserved exactly.  If so
+  // heapify and pull large entries untill remaining
+  // entries are not large enough to be preserved
+  // exactly.
   if (n*dmax>=r) {
     mm = 1;
     r -= dmax;
-    heapify(yheap,L-1,spcomparebyval);
+    heapify(y,ny-1,spcomparebyval);
     
-    while (( (n-mm)*yheap[0].val>=r) && (mm<n)) {
-      r -= yheap[0].val;
-      pullroot(yheap,L-mm,spcomparebyval);
+    while (( (n-mm)*y[0].val>=r) && (mm<n)) {
+      r -= y[0].val;
+      pullroot(y,ny-mm,spcomparebyval);
       mm++;
     }
   }
 
-  // compute the norm of the vector of remaining small entries
+  // compute the norm of the vector of
+  // remaining small entries
   r = 0;
-  for (ii=0;ii<L-mm;ii++)
-    r += yheap[ii].val;
+  for (ii=0;ii<ny-mm;ii++)
+    r += y[ii].val;
 
-  // compress remaining small entries.  note that for small entries, entries that are not set to zero
-  // are set to the norm of the vector of remaining small entries divided by the difference between n
+  // compress remaining small entries.  note
+  // that for small entries, entries that
+  // are not set to zero are set to the norm
+  // of the vector of remaining small entries
+  // divided by the difference between n
   // and the number of large entries preserved exactly.
   if ((mm<n) && (r>nrm1*Tol)) {
     nz = mm;
     w = -uu(gen); //-genrand64_real3()
     jj = 0;
     ii = 0;
-    while ( (nz<n) && (ii<L-mm) ) {
-      w += ((n-mm)*yheap[ii].val)/r;
+    while ( (nz<n) && (ii<ny-mm) ) {
+      w += ((n-mm)*y[ii].val)/r;
       kk=jj;
       while (jj <= (long)floor(w)) 
 	jj++;
 	    
       if (jj==kk)
-	yheap[ii].val = 0;
+	y[ii].val = 0;
       else {
-	nz += 1;
-	yheap[ii].val = r/(double)(n-mm);
+	nz++;
+	y[ii].val = r/(double)(n-mm);
 	if (jj-kk>1)
 	  std::cerr << "Too big\n";
       }
       ii++;
     }	
-    while (ii<L-mm){
-      yheap[ii].val = 0;
+    while (ii<ny-mm){
+      y[ii].val = 0;
       ii++;
     }
   }
   else 
-    for (ii=0;ii<L-mm;ii++)
-      yheap[ii].val=0;
+    for (ii=0;ii<ny-mm;ii++)
+      y[ii].val=0;
   
-
-  // read the result back into y
-  for(ii=0;ii<L;ii++)
-    y[yheap[ii].loc] = yheap[ii].val;
-  
-    
-  nz = 0;
-  for (ii=0;ii<L;ii++)
-    if (y[ii]>0)
-      nz += 1;
-                    
   if (nz>n)
-    std::cerr << "Too many nonzeros in compress\n"; //', nz,n,mm, nrm1, nrm1-r, w, L
-      
-  free(yheap);
+    std::cerr << "Too many nonzeros in compress\n";
 
   return 0;
   
