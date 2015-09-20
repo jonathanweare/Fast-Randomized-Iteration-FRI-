@@ -1,6 +1,7 @@
 # Fast-Randomized-Iteration-FRI-
 A simple example in C++ of FRI applied to computing the dominant eigenvalue of a matrix.
 
+[![DOI](https://zenodo.org/badge/18470/jonathanweare/Fast-Randomized-Iteration-FRI-.svg)](https://zenodo.org/badge/latestdoi/18470/jonathanweare/Fast-Randomized-Iteration-FRI-)
 
 ---
 #### Algorithm
