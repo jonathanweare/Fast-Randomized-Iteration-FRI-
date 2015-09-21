@@ -15,4 +15,4 @@ This repository provides a simple C++11 implementation of an FRI algorithm to fi
 
 This code was not used to generate the results in the Lim and Weare paper and has not been tested extensively.  To run the code just type the command $sh compileme.sh from the directory containing the code.  Try the example and experiment.  Reports of bugs or improvements would be greatly appreciated!
 
-If you use the code please cite this repository using the DOI above as well as the Lim and Weare paper.
+If you use the code please cite both this repository using the DOI above, and the Lim and Weare paper.
