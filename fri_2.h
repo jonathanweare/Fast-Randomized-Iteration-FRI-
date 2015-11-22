@@ -14,6 +14,7 @@
 
 //---------------------------------------------------------
 // Sparse vector entry definition and helper routines
+// Declaration
 //---------------------------------------------------------
 
 template <typename IdxType, typename ValType>
@@ -21,6 +22,142 @@ struct SparseEntry {
   IdxType idx;
   ValType val;
 };
+
+// Compare two sparse vector entries by value.
+// Relies on ValType having a less than comparator.
+struct spcomparebyval;
+
+// Compare two sparse vector entries by index.
+// Relies on IdxType having a less than comparator.
+struct spcomparebyidx;
+
+//---------------------------------------------------------
+// Sparse vector class definition and routines
+// Declaration
+//---------------------------------------------------------
+
+template <typename IdxType, typename ValType>
+class SparseVector {
+public:
+  // Number of nonzero entries actually in the vector.
+  size_t curr_size_;
+  // Number of nonzero entries that could be in the vector.
+  // Must not change.
+  const size_t max_size_;
+
+  // norm() returns the sum of the current entry values.
+  ValType norm() const;
+
+  // Constructor taking max_size as an argument and 
+  // allocating space for that many SparseEntry structs.
+  SparseVector(size_t max_size);
+
+  // Assignment by value up to current size, leaving
+  // max size & other entries unchanged.
+  inline SparseVector<IdxType, ValType>& operator=(const SparseVector<IdxType, ValType> &other);
+
+  // Accessors for the underlying vector so one can do
+  // some of the normal vector manipulation, but not all.
+  // Specifically, subscripting and iterator begin and end
+  // are provided. Incremental queue and stack function is 
+  // intentionally not provided.
+  inline SparseEntry<IdxType, ValType>& operator[](const size_t idx) {return entries_[idx];}
+  inline const SparseEntry<IdxType, ValType>& operator[](const size_t idx) const {return entries_[idx];}
+  typedef typename std::vector<SparseEntry<IdxType, ValType>>::iterator sp_iterator;
+  inline sp_iterator begin() {return entries_.begin();}
+  inline sp_iterator end() {return entries_.end();}
+
+private:
+  // Do not allow manual resizing and pushing/popping of the entries vector.
+  std::vector<SparseEntry<IdxType, ValType>> entries_;
+};
+
+// Normalize a sparse vector by the sum of its entry vals.
+template <typename IdxType, typename ValType>
+inline void normalize(SparseVector<IdxType, ValType> &vec);
+
+// Remove all zero elements from a sparse vector.
+template <typename IdxType, typename ValType>
+inline void remove_zeros(SparseVector<IdxType, ValType> &vec);
+
+// Print a vector to cout by printing the number 
+// of nonzero entries and then printing each entry
+// as a val idx pair. 
+template <typename IdxType, typename ValType>
+inline void print_vector(SparseVector<IdxType, ValType> &vec);
+
+// Perform  y <- α x + y.
+// y must be large enough to contain 
+// all entries of x and y; no allocation
+// will be performed by this routine.
+template <typename IdxType, typename ValType>
+inline int sparse_axpy(ValType alpha,
+         const SparseVector<IdxType, ValType> &x,
+         SparseVector<IdxType, ValType> &y);
+
+// sparse_gemv computes y <-- alpha A x + beta y
+// where x and y are sparse vectors and the matrix 
+// A is specified by a routine Acolumn that returns 
+// a single column of A.  bw is an
+// upper bound on the number of non-zero entries in
+// any column of A.  y is assumed to be of max_size
+// at least y.curr_size_ + bw x.curr_size_ if beta 
+// is nonzero, and bw x.curr_size_ otherwise.
+// y is overwritten upon output.
+template <typename IdxType, typename ValType>
+inline int sparse_gemv(ValType alpha,
+        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+        size_t max_nz_col_entries,
+        const SparseVector<IdxType, ValType> &x, ValType beta,
+        SparseVector<IdxType, ValType> &y);
+
+//---------------------------------------------------------
+// Sparse vector compression helper class and routines
+//---------------------------------------------------------
+
+using std::abs;
+
+// Sparse vector compression class.
+template <typename IdxType, typename ValType>
+class Compressor {
+private:
+  
+  // Temporary storage for an intermediate.
+  SparseVector<size_t, double> xabs_;
+  
+  // Random number generator.
+  std::mt19937_64 gen_;
+  std::uniform_real_distribution<> uu_;
+  
+  // Do not allow copying or assignment for compressors.
+  Compressor<IdxType, ValType>(Compressor<IdxType, ValType> &);
+  Compressor<IdxType, ValType>& operator= (Compressor<IdxType, ValType> &);
+  
+  // Helper function: compress the internal 
+  // vector of moduli.
+  inline void compress_xabs(size_t target_nnz);
+
+public:
+
+  // Constructor based on maximum size of the
+  // modulus vector and a random seed.
+  inline Compressor<IdxType, ValType>(size_t max_size, size_t seed) : 
+    xabs_(SparseVector<size_t, double>(max_size)) {
+    // Set up the pseudorandom number generator.
+    gen_ = std::mt19937_64(seed);
+    uu_ = std::uniform_real_distribution<>(0,1);
+  }
+  
+  // Compress a SparseVector using the stored
+  // temp vector and pseudorandom number generator.
+  void compress(SparseVector<IdxType, ValType> &x, size_t target_nnz);
+};
+
+//---------------------------------------------------------
+// Sparse vector entry definition and helper routines
+// Implementation
+//---------------------------------------------------------
+
 
 // Compare two sparse vector entries by value.
 // Relies on ValType having a less than comparator.
@@ -42,67 +179,38 @@ struct spcomparebyidx {
 
 //---------------------------------------------------------
 // Sparse vector class definition and routines
+// Implementation
 //---------------------------------------------------------
 
-template <typename IdxType, typename ValType>
-class SparseVector {
-public:
-  // Number of nonzero entries actually in the vector.
-  size_t curr_size_;
-  // Number of nonzero entries that could be in the vector.
-  // Must not change.
-  const size_t max_size_;
-
   // norm() returns the sum of the current entry values.
-  inline ValType norm() const {
-    ValType norm = 0;
-    for (size_t i = 0; i < curr_size_; i++) {
-      norm += entries_[i].val;
-    }
-    return norm;
+template <typename IdxType, typename ValType>
+inline ValType SparseVector<IdxType, ValType>::norm() const {
+  ValType norm = 0;
+  for (size_t i = 0; i < curr_size_; i++) {
+    norm += entries_[i].val;
   }
+  return norm;
+}
 
   // Constructor taking max_size as an argument and 
   // allocating space for that many SparseEntry structs.
-  inline SparseVector(size_t max_size) : max_size_(max_size) {
-    curr_size_ = 0;
-    entries_ = std::vector<SparseEntry<IdxType, ValType>>(max_size);
-  }
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>::SparseVector(size_t max_size) : max_size_(max_size) {
+  curr_size_ = 0;
+  entries_ = std::vector<SparseEntry<IdxType, ValType>>(max_size);
+}
 
   // Assignment by value up to current size, leaving
   // max size & other entries unchanged.
-  inline SparseVector<IdxType, ValType>& operator=(const SparseVector<IdxType, ValType> &other) {
-    assert(other.curr_size_ <= max_size_);
-    curr_size_ = other.curr_size_;
-    for (size_t i = 0; i < other.curr_size_; i++) {
-      entries_[i] = other.entries_[i];
-    }
-    return *this;
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator=(const SparseVector<IdxType, ValType> &other) {
+  assert(other.curr_size_ <= max_size_);
+  curr_size_ = other.curr_size_;
+  for (size_t i = 0; i < other.curr_size_; i++) {
+    entries_[i] = other.entries_[i];
   }
-
-  // Accessors for the underlying vector so one can do
-  // some of the normal vector manipulation, but not all.
-  // Specifically, subscripting and iterator begin and end
-  // are provided. Incremental queue and stack function is 
-  // intentionally not provided.
-  inline SparseEntry<IdxType, ValType>& operator[](const size_t idx) {
-    return entries_[idx];
-  }
-  inline const SparseEntry<IdxType, ValType>& operator[](const size_t idx) const {
-    return entries_[idx];
-  }
-  typedef typename std::vector<SparseEntry<IdxType, ValType>>::iterator sp_iterator;
-  inline sp_iterator begin() {
-    return entries_.begin();
-  }
-  inline sp_iterator end() {
-    return entries_.end();
-  }
-
-private:
-  // Do not allow manual resizing and pushing/popping of the entries vector.
-  std::vector<SparseEntry<IdxType, ValType>> entries_;
-};
+  return *this;
+}
 
 // Normalize a sparse vector by the sum of its entry vals.
 template <typename IdxType, typename ValType>
@@ -281,66 +389,39 @@ inline int sparse_gemv(ValType alpha,
 
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
+// Implementation
 //---------------------------------------------------------
 
 using std::abs;
 
-// Sparse vector compression class.
+// Compress a SparseVector using the stored
+// temp vector and pseudorandom number generator.
 template <typename IdxType, typename ValType>
-class Compressor {
-private:
-  // Temporary storage for an intermediate.
-  SparseVector<size_t, double> xabs_;
-  // Random number generator.
-  std::mt19937_64 gen_;
-  std::uniform_real_distribution<> uu_;
-  // Do not allow copying or assignment for compressors.
-  Compressor<IdxType, ValType>(Compressor<IdxType, ValType> &);
-  Compressor<IdxType, ValType>& operator= (Compressor<IdxType, ValType> &);
-  
-  // Helper function: compress the internal 
-  // vector of moduli.
-  inline void compress_xabs(size_t target_nnz);
-
-public:
-
-  // Constructor based on maximum size of the
-  // modulus vector.
-  inline Compressor<IdxType, ValType>(size_t max_size, size_t seed) : 
-    xabs_(SparseVector<size_t, double>(max_size)) {
-    // Set up the pseudorandom number generator.
-    gen_ = std::mt19937_64(seed);
-    uu_ = std::uniform_real_distribution<>(0,1);
+inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
+  // Copy the modulus of each entry into xabs_.
+  assert(x.curr_size_ <= xabs_.max_size_);
+  xabs_.curr_size_ = x.curr_size_;
+  for (size_t jj = 0; jj< x.curr_size_; jj++){
+    xabs_[jj].val = abs(x[jj].val);
+    xabs_[jj].idx = jj;
   }
-  
-  // Compress a SparseVector using the stored
-  // temp vector and pseudorandom number generator.
-  inline void compress(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
-    // Copy the modulus of each entry into xabs_.
-    assert(x.curr_size_ <= xabs_.max_size_);
-    xabs_.curr_size_ = x.curr_size_;
-    for (size_t jj = 0; jj< x.curr_size_; jj++){
-      xabs_[jj].val = abs(x[jj].val);
-      xabs_[jj].idx = jj;
-    }
-    // Compress the moduli vector.
-    compress_xabs(target_nnz);
-    // Translate the compression of the moduli vector to
-    // a compression of the input vector. For each entry
-    // of the compressed xabs,
-    for(size_t jj = 0; jj < xabs_.curr_size_; jj++){
-      // Find the corresponding member of x and
-      // set its modulus according to the modulus
-      // of xabs.
-      size_t ii = xabs_[jj].idx;
-      assert(x[ii].val != 0);
-      x[ii].val = (x[ii].val / abs(x[ii].val)) * xabs_[jj].val;
-    }
-    // Remove the entries set to zero.
-    remove_zeros(x);
-    // The vector is now compressed.
+  // Compress the moduli vector.
+  compress_xabs(target_nnz);
+  // Translate the compression of the moduli vector to
+  // a compression of the input vector. For each entry
+  // of the compressed xabs,
+  for(size_t jj = 0; jj < xabs_.curr_size_; jj++){
+    // Find the corresponding member of x and
+    // set its modulus according to the modulus
+    // of xabs.
+    size_t ii = xabs_[jj].idx;
+    assert(x[ii].val != 0);
+    x[ii].val = (x[ii].val / abs(x[ii].val)) * xabs_[jj].val;
   }
-};
+  // Remove the entries set to zero.
+  remove_zeros(x);
+  // The vector is now compressed.
+}
 
 template <typename IdxType, typename ValType>
 inline void Compressor<IdxType, ValType>::compress_xabs(size_t target_nnz) {
@@ -463,6 +544,5 @@ inline void Compressor<IdxType, ValType>::compress_xabs(size_t target_nnz) {
     }
   }
 }
-
 
 #endif
