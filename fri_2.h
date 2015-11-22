@@ -17,6 +17,14 @@
 // Declaration
 //---------------------------------------------------------
 
+// An entry of a sparse matrix consists of
+// an index and a value. Both must have a
+// less than operator, and ValType must also
+// support multiplication, division, addition,
+// subtraction, assignment to zero, and an 
+// absolute value function named 'abs'
+// with a return value that casts to 'double'
+// unambiguously.
 template <typename IdxType, typename ValType>
 struct SparseEntry {
   IdxType idx;
@@ -35,6 +43,23 @@ struct spcomparebyidx;
 // Sparse vector class definition and routines
 // Declaration
 //---------------------------------------------------------
+
+// SparseVector represents a sparse vector implemented
+// as an array of SparseEntry values. The underlying
+// array is fixed size to avoid costly allocations, 
+// this is max_size_, but the size of the actual vector 
+// is dynamic and equal to curr_size_. There are no 
+// guarantees on SparseEntry values past curr_size_.
+// They can be  subscripted as if they were a vector of
+// SparseEntry structs and also provide begin() and end()
+// based on curr_size_.
+
+// SparseVectors are added using sp_axpy and multiplied
+// by sparse matrices using sp_gemv. They can be
+// normalized using normalize(vec), cleaned of zero entries
+// using remove_zeros(vec), and printed using 
+// print_vector(vec). The sum of entry values is available
+// through .norm().
 
 template <typename IdxType, typename ValType>
 class SparseVector {
@@ -65,7 +90,7 @@ public:
   inline const SparseEntry<IdxType, ValType>& operator[](const size_t idx) const {return entries_[idx];}
   typedef typename std::vector<SparseEntry<IdxType, ValType>>::iterator sp_iterator;
   inline sp_iterator begin() {return entries_.begin();}
-  inline sp_iterator end() {return entries_.end();}
+  inline sp_iterator end() {return entries_.begin() + curr_size_;}
 
 private:
   // Do not allow manual resizing and pushing/popping of the entries vector.
@@ -113,9 +138,8 @@ inline int sparse_gemv(ValType alpha,
 
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
+// Declaration
 //---------------------------------------------------------
-
-using std::abs;
 
 // Sparse vector compression class.
 template <typename IdxType, typename ValType>
@@ -157,7 +181,6 @@ public:
 // Sparse vector entry definition and helper routines
 // Implementation
 //---------------------------------------------------------
-
 
 // Compare two sparse vector entries by value.
 // Relies on ValType having a less than comparator.
