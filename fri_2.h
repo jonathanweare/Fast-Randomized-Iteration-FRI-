@@ -11,6 +11,7 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
+// #include "fri_index.h"
 
 //---------------------------------------------------------
 // Sparse vector entry definition and helper routines
