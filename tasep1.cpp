@@ -32,12 +32,12 @@ bool operator<(const bitset<N>& x, const bitset<N>& y)
 #include "fri_2.h"
 
 const size_t N = 2;
-const size_t M = 2;
-const double tt = 1.0;
-const double UU = 1.0;
+const size_t M = 1;
+const double alpha = 1.0;
+const double UU = -1.0;
 
-typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
-
+//typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
+typedef bitset<N> multiindex;
 
 // template<std::size_t N>
 // bool operator<(const std::bitset<N>& x, const std::bitset<N>& y)
@@ -49,72 +49,62 @@ typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
 // }
 
 
-int column(SparseVector<multiindex, double> &col, const multiindex ii_in){
+int column(SparseVector<multiindex, double> &col, const multiindex ii){
   
-  int n = 50;
-  double BB = 0.01;
-  double TT = 2.2;
+  size_t jj;
+  size_t X=0;
+  double eUU = exp(UU);
+
+  // cout << eUU << "\n";
+  // exit(1);
   
-  double aa, bb, cc, invaa, invbb, invcc;
-  long L, ii;
-
-  ii = ii_in.to_ullong();
-  
-  col.curr_size_ = 2;
-
-  aa = exp((2.0-BB)/TT);
-  bb = exp(-BB/TT);
-  cc = exp((-2.0-BB)/TT);
-  invaa = exp(-(2.0-BB)/TT);
-  invbb = exp(BB/TT);
-  invcc = exp((2.0+BB)/TT);
-
-  L = (long)1<<n;
-  
-  if (ii < (L>>2)){
-    col[0].val = aa;
-    col[0].idx = (ii<<1);
-
-    col[1].val = bb;
-    col[1].idx = (ii<<1)+1;
+  for(jj=0;jj<N-1;jj++){
+    if( ii[jj] & !ii[jj+1] ){
+      col[X].idx = ii;
+      col[X].idx[jj]=false;
+      col[X].idx[jj+1]=true;
+      // cout << jj << " " << ii[jj]<< " " << ii[jj+1] << " "<< col[X].idx << "\n";
+      X++;
+    } 
   }
-  else if (ii>= (L>>2) && ii< (L>>1)){
-    col[0].val = bb;
-    col[0].idx = (ii<<1);
-
-    col[1].val = cc;
-    col[1].idx = (ii<<1)+1;
+  if( ii[N-1] & !ii[0] ){
+    col[X].idx = ii;
+    col[X].idx[N-1]=false;
+    col[X].idx[0]=true;
+    X++;
   }
 
-  else if (ii>=(L>>1) && ii< (L>>1)+(L>>2)){
-    col[0].val = invaa;
-    col[0].idx = (ii<<1)-L;
+  for(jj=0;jj<X;jj++)
+    col[jj].val = alpha*eUU/M;
 
-    col[1].val = invbb;
-    col[1].idx = (ii<<1)+1-L;
+  col[X].idx = ii;
+  col[X].val = 1.0 - X*alpha/M;
+
+  col.curr_size_ = X+1;
+
+  cout << "\n";
+  cout << ii << "\n";
+
+  cout << "X " << X << "\n";
+  for(jj=0;jj<=X;jj++){    
+    cout << "\n";
+    cout << jj << "\n";
+    cout << col[jj].val << "\n";
+    cout << col[jj].idx << "\n";
   }
-
-  else if (ii>= (L>>1)+(L>>2)){
-    col[0].val = invbb;
-    col[0].idx = (ii<<1)-L;
-
-    col[1].val = invcc;
-    col[1].idx = (ii<<1)+1-L;
-  } else {
-    printf("problem in Ising transfer matrix\n");
-  }
+  
 
   return 0;
 }
 
 
 int main() {
-  const size_t Nit = 100;      // number of iterations after burn in
-  const size_t Brn = 100;      // number of burn in iterations (these
+  const size_t Nit = 2;      // number of iterations after burn in
+  const size_t Brn = 0;      // number of burn in iterations (these
                          // are not included in trajectory averages)
-  const size_t m = 32768;      // compression parameter (after compression vectors have
+  const size_t m = 1000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
-  const size_t bw = 2;         // upper bound on the number of entries in each
+  const size_t bw = M+1;         // upper bound on the number of entries in each
                          // column of matrix
 
   // Initialize iterate vectors.
@@ -123,7 +113,8 @@ int main() {
   vnew.curr_size_ = 1;
   v.curr_size_ = 1;                                                    // initial vector
   v[0].val = 1.0;
-  v[0].idx = 1;
+  v[0].idx = 0;
+  for(size_t jj=0;jj<M;jj++) v[0].idx[2*jj]=true;
   normalize(v);
   // Initialize a seeded random compressor.
   std::random_device rd;
@@ -162,7 +153,7 @@ int main() {
 
     // Print an iterate summary.
     printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, lambda, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, log(lambda), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
   // Generate a trajectory of Nit iterations and 
@@ -185,7 +176,7 @@ int main() {
 
     // Print an iterate summary.
     printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, lambda, lambda_ave, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, log(lambda), log(lambda_ave), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
   return 0;  
