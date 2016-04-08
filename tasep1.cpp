@@ -31,10 +31,10 @@ bool operator<(const bitset<N>& x, const bitset<N>& y)
 
 #include "fri_2.h"
 
-const size_t N = 2;
-const size_t M = 1;
+const size_t N = 100;
+const size_t M = 50;
 const double alpha = 1.0;
-const double UU = -1.0;
+const double UU = -2.0;
 
 //typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
 typedef bitset<N> multiindex;
@@ -82,16 +82,16 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
 
   col.curr_size_ = X+1;
 
-  cout << "\n";
-  cout << ii << "\n";
+  // cout << "\n";
+  // cout << ii << "\n";
 
-  cout << "X " << X << "\n";
-  for(jj=0;jj<=X;jj++){    
-    cout << "\n";
-    cout << jj << "\n";
-    cout << col[jj].val << "\n";
-    cout << col[jj].idx << "\n";
-  }
+  // cout << "X " << X << "\n";
+  // for(jj=0;jj<=X;jj++){    
+  //   cout << "\n";
+  //   cout << jj << "\n";
+  //   cout << col[jj].val << "\n";
+  //   cout << col[jj].idx << "\n";
+  // }
   
 
   return 0;
@@ -99,10 +99,10 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
 
 
 int main() {
-  const size_t Nit = 2;      // number of iterations after burn in
+  const size_t Nit = 100000;      // number of iterations after burn in
   const size_t Brn = 0;      // number of burn in iterations (these
                          // are not included in trajectory averages)
-  const size_t m = 1000;      // compression parameter (after compression vectors have
+  const size_t m = 10000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   const size_t bw = M+1;         // upper bound on the number of entries in each
                          // column of matrix

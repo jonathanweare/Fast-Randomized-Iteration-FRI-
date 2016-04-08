@@ -424,11 +424,13 @@ template <typename IdxType, typename ValType>
 inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
   // Copy the modulus of each entry into xabs_.
   assert(x.curr_size_ <= xabs_.max_size_);
-  xabs_.curr_size_ = x.curr_size_;
+  size_t ii = 0;
   for (size_t jj = 0; jj< x.curr_size_; jj++){
-    xabs_[jj].val = abs(x[jj].val);
-    xabs_[jj].idx = jj;
+    xabs_[ii].val = abs(x[jj].val);
+    xabs_[ii].idx = jj;
+    if (xabs_[ii].val>0) ii++;
   }
+  xabs_.curr_size_ = ii;
   // Compress the moduli vector.
   compress_xabs(target_nnz);
   // Translate the compression of the moduli vector to
@@ -438,7 +440,7 @@ inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType
     // Find the corresponding member of x and
     // set its modulus according to the modulus
     // of xabs.
-    size_t ii = xabs_[jj].idx;
+    ii = xabs_[jj].idx;
     assert(x[ii].val != 0);
     x[ii].val = (x[ii].val / abs(x[ii].val)) * xabs_[jj].val;
   }

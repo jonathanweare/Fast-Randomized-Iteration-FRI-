@@ -8,75 +8,93 @@
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
-#include "fri_2.h"
+#include <bitset>
 
 using namespace std;
 
 
 
-typedef std::vector<long> multiindex;
+//typedef std::vector<long> multiindex;
 
+// template<std::size_t N>
+// bool operator<(const std::bitset<N>& x, const std::bitset<N>& y)
+// {
+//     for (int i = N-1; i >= 0; i--) {
+//         if (x[i] ^ y[i]) return y[i];
+//     }
+//     return false;
+// }
 
+template<size_t N>
+bool operator<(const bitset<N>& x, const bitset<N>& y)
+{
+    for (int i = N-1; i >= 0; i--) {
+        if (x[i] ^ y[i]) return y[i];
+    }
+    return false;
+}
+
+#include "fri_2.h"
 
 // A subroutine that returns the ii-th column of
 // the transfer matrix of the 2D Ising model.
-int column(SparseVector<multiindex, double> &col, const multiindex ii){
+int column(SparseVector<bitset<10>, double> &col, const bitset<10> ii){
   
-  int n = 50;
-  double BB = 0.01;
-  double TT = 2.2;
+  // int n = 50;
+  // double BB = 0.01;
+  // double TT = 2.2;
 
-  double aa, bb, cc, invaa, invbb, invcc;
-  long jj, L;
+  // double aa, bb, cc, invaa, invbb, invcc;
+  // long jj, L;
   
-  col.curr_size_ = 2;
+  // col.curr_size_ = 2;
 
-  for(jj=0;jj<col.curr_size_;jj++)
-    col[jj].idx.clear(); 
+  // for(jj=0;jj<col.curr_size_;jj++)
+  //   col[jj].idx.clear(); 
 
-  aa = exp((2.0-BB)/TT);
-  bb = exp(-BB/TT);
-  cc = exp((-2.0-BB)/TT);
-  invaa = exp(-(2.0-BB)/TT);
-  invbb = exp(BB/TT);
-  invcc = exp((2.0+BB)/TT);
+  // aa = exp((2.0-BB)/TT);
+  // bb = exp(-BB/TT);
+  // cc = exp((-2.0-BB)/TT);
+  // invaa = exp(-(2.0-BB)/TT);
+  // invbb = exp(BB/TT);
+  // invcc = exp((2.0+BB)/TT);
 
-  L = (long)1<<n;
+  // L = (long)1<<n;
   
-  if (ii[0] < (L>>2)){
-    col[0].val = aa;
-    col[0].idx.push_back(ii[0]<<1);
+  // if (ii[0] < (L>>2)){
+  //   col[0].val = aa;
+  //   col[0].idx.push_back(ii[0]<<1);
 
-    col[1].val = bb;
-    col[1].idx.push_back((ii[0]<<1)+1);
-  }
+  //   col[1].val = bb;
+  //   col[1].idx.push_back((ii[0]<<1)+1);
+  // }
 
 
-  else if (ii[0]>= (L>>2) && ii[0]< (L>>1)){
-    col[0].val = bb;
-    col[0].idx.push_back(ii[0]<<1);
+  // else if (ii[0]>= (L>>2) && ii[0]< (L>>1)){
+  //   col[0].val = bb;
+  //   col[0].idx.push_back(ii[0]<<1);
 
-    col[1].val = cc;
-    col[1].idx.push_back((ii[0]<<1)+1);
-  }
+  //   col[1].val = cc;
+  //   col[1].idx.push_back((ii[0]<<1)+1);
+  // }
 
-  else if (ii[0]>=(L>>1) && ii[0]< (L>>1)+(L>>2)){
-    col[0].val = invaa;
-    col[0].idx.push_back((ii[0]<<1)-L);
+  // else if (ii[0]>=(L>>1) && ii[0]< (L>>1)+(L>>2)){
+  //   col[0].val = invaa;
+  //   col[0].idx.push_back((ii[0]<<1)-L);
 
-    col[1].val = invbb;
-    col[1].idx.push_back((ii[0]<<1)+1-L);
-  }
+  //   col[1].val = invbb;
+  //   col[1].idx.push_back((ii[0]<<1)+1-L);
+  // }
 
-  else if (ii[0]>= (L>>1)+(L>>2)){
-    col[0].val = invbb;
-    col[0].idx.push_back((ii[0]<<1)-L);
+  // else if (ii[0]>= (L>>1)+(L>>2)){
+  //   col[0].val = invbb;
+  //   col[0].idx.push_back((ii[0]<<1)-L);
 
-    col[1].val = invcc;
-    col[1].idx.push_back((ii[0]<<1)+1-L);
-  } else {
-    printf("problem in Ising transfer matrix\n");
-  }
+  //   col[1].val = invcc;
+  //   col[1].idx.push_back((ii[0]<<1)+1-L);
+  // } else {
+  //   printf("problem in Ising transfer matrix\n");
+  // }
 
   return 0;
 }
@@ -92,16 +110,16 @@ int main() {
                          // column of matrix
 
   // Initialize iterate vectors.
-  SparseVector<multiindex, double> v(bw * m);
-  SparseVector<multiindex, double> vnew(bw * m);
+  SparseVector<bitset<10>, double> v(bw * m);
+  SparseVector<bitset<10>, double> vnew(bw * m);
   vnew.curr_size_ = 1;
   v.curr_size_ = 1;                                                    // initial vector
   v[0].val = 1.0;
-  v[0].idx = {0};
+  v[0].idx = 0;
   normalize(v);
   // Initialize a seeded random compressor.
   std::random_device rd;
-  Compressor<multiindex, double> compressor(bw * m, rd());
+  Compressor<bitset<10>, double> compressor(bw * m, rd());
 
   // std::bitset<4> a (6);
   // a = 8;

@@ -1,2 +1,2 @@
-g++ 2dIsing_2.cpp -o 2dIsing2 -std=c++11 -O3
+g++ tase1.cpp -o tase1 -std=c++11 -O3
 
