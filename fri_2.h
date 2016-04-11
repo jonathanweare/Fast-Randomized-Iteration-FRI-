@@ -432,7 +432,7 @@ inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType
   }
   xabs_.curr_size_ = ii;
   // Compress the moduli vector.
-  compress_xabs(target_nnz);
+  compress_xabs_sys(target_nnz);
   // Translate the compression of the moduli vector to
   // a compression of the input vector. For each entry
   // of the compressed xabs,
@@ -450,7 +450,7 @@ inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType
 }
 
 template <typename IdxType, typename ValType>
-inline void Compressor<IdxType, ValType>::compress_xabs(size_t target_nnz) {
+inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
   // First count the number of actually
   // non-zero entries and check that
   // all entries are non-negative.
