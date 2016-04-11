@@ -99,22 +99,23 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
 
 
 int main() {
-  const size_t Nit = 100000;      // number of iterations after burn in
+  const size_t Nit = 1000;      // number of iterations after burn in
   const size_t Brn = 0;      // number of burn in iterations (these
                          // are not included in trajectory averages)
-  const size_t m = 10000;      // compression parameter (after compression vectors have
+  const size_t m = 100000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   const size_t bw = M+1;         // upper bound on the number of entries in each
                          // column of matrix
 
   // Initialize iterate vectors.
-  SparseVector<multiindex, double> v(bw * m);
-  SparseVector<multiindex, double> vnew(bw * m);
+  SparseVector<multiindex, double> v(2*bw * m);
+  SparseVector<multiindex, double> vnew(2*bw * m);
   vnew.curr_size_ = 1;
   v.curr_size_ = 1;                                                    // initial vector
   v[0].val = 1.0;
   v[0].idx = 0;
   for(size_t jj=0;jj<M;jj++) v[0].idx[2*jj]=true;
+  //for(size_t jj=0;jj<M;jj++) v[0].idx[jj]=true;
   normalize(v);
   // Initialize a seeded random compressor.
   std::random_device rd;

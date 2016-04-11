@@ -160,7 +160,8 @@ private:
   
   // Helper function: compress the internal 
   // vector of moduli.
-  inline void compress_xabs(size_t target_nnz);
+  inline void compress_xabs_sys(size_t target_nnz);
+  inline void compress_xabs_dmc(size_t target_nnz);
 
 public:
 
@@ -432,7 +433,7 @@ inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType
   }
   xabs_.curr_size_ = ii;
   // Compress the moduli vector.
-  compress_xabs_sys(target_nnz);
+  compress_xabs_dmc(target_nnz);
   // Translate the compression of the moduli vector to
   // a compression of the input vector. For each entry
   // of the compressed xabs,
@@ -568,6 +569,59 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
     if (nnz > target_nnz) {
       std::cerr << "Too many nonzeros in compress\n";
     }
+  }
+}
+
+template <typename IdxType, typename ValType>
+inline void Compressor<IdxType, ValType>::compress_xabs_dmc(size_t target_nnz) {
+  // First count the number of actually
+  // non-zero entries and check that
+  // all entries are non-negative.
+  size_t nnz = xabs_.curr_size_;
+  for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
+    assert(xabs_[ii].val >= 0);
+    if (xabs_[ii].val == 0) {
+      nnz -= 1;
+    }
+  }
+    
+  // If there are already fewer than n nonzero
+  // entries, no compression is needed.
+  if (nnz <= target_nnz) {
+    return;
+  // Otherwise, perform compression.
+  } else {
+
+    // double target_entry_average = xabs_.norm()/(double) target_nnz;
+    // For every small entry,
+    // for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
+    //   // For each entry, add to w an amount equal to the
+    //   // current entry value divided by the target average
+    //   // entry value.
+    //   xabs_[ii].val = target_entry_average * floor(xabs_[ii].val/target_entry_average + uu_(gen_));
+    // }
+
+    double U = uu_(gen_);
+    double w = 0;
+    size_t nnz_added = 0;
+    size_t nnz_before_entry;
+    double target_entry_average = xabs_.norm()/(double) target_nnz;
+    // For every small entry,
+    for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
+      // For each entry, add to w an amount equal to the
+      // current entry value divided by the target average
+      // entry value.
+      w += xabs_[ii].val / target_entry_average;
+      // If enough small nonzeros are already 
+      // kept to exceed the current w, set this
+      // entry's value to zero.
+      nnz_before_entry = nnz_added;
+      nnz_added = (size_t)ceil(w-U);
+      // while ((double)nnz_added <= w) nnz_added++;
+      xabs_[ii].val = target_entry_average * (double)(nnz_added-nnz_before_entry);  
+    }
+
+    assert(xabs_.norm()>0);
   }
 }
 
