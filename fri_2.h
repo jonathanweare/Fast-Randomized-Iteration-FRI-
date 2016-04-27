@@ -433,7 +433,7 @@ inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType
   }
   xabs_.curr_size_ = ii;
   // Compress the moduli vector.
-  compress_xabs_dmc(target_nnz);
+  compress_xabs_sys(target_nnz);
   // Translate the compression of the moduli vector to
   // a compression of the input vector. For each entry
   // of the compressed xabs,
@@ -455,18 +455,19 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
   // First count the number of actually
   // non-zero entries and check that
   // all entries are non-negative.
-  double Tol = 1e-9;
+  double Tol = 1e-12;
   size_t nnz = xabs_.curr_size_;
-  double initial_sum = xabs_.norm();
+  double initial_ave = xabs_.norm()/target_nnz;
+  assert(initial_ave>0);
   for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
     assert(xabs_[ii].val>= 0);
-    if (xabs_[ii].val/initial_sum < Tol) {
+    if (xabs_[ii].val < Tol*initial_ave) {
       nnz -= 1;
       xabs_[ii].val = 0;
     }
   }
 
-  cout << nnz << "\t" << target_nnz << "\n";
+  // cout << nnz << "\t" << target_nnz << "\n";
     
   // If there are already fewer than n nonzero
   // entries, no compression is needed.
@@ -576,7 +577,7 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
       std::cerr << "Too many nonzeros in compress\n";
     }
 
-  cout << nnz_large << "\t" << nnz << "\t" << target_nnz << "\n";
+  // cout << nnz_large << "\t" << nnz << "\t" << target_nnz << "\n";
   assert( nnz == target_nnz );
   }
 }

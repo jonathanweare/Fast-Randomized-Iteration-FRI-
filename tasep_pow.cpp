@@ -31,10 +31,10 @@ bool operator<(const bitset<N>& x, const bitset<N>& y)
 
 #include "fri_2.h"
 
-const size_t N = 100;
-const size_t M = 50;
+const size_t N = 12;
+const size_t M = 6;
 const double alpha = 1.0;
-const double UU = -2.0/N;
+const double UU = -2.0;
 
 //typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
 typedef bitset<N> multiindex;
@@ -47,6 +47,33 @@ typedef bitset<N> multiindex;
 //     }
 //     return false;
 // }
+
+template <unsigned int N, unsigned int K>
+struct Choose
+{
+    enum
+    {
+        value=Choose<N-1,K-1>::value + Choose<N-1,K>::value
+    };
+};
+
+template <unsigned int N>
+struct Choose<N,0>
+{
+    enum
+    {
+        value=1
+    };
+};
+
+template <unsigned int N>
+struct Choose<N,N>
+{
+    enum
+    {
+        value=1
+    };
+};
 
 
 int column(SparseVector<multiindex, double> &col, const multiindex ii){
@@ -99,10 +126,10 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
 
 
 int main() {
-  const size_t Nit = 1000000;      // number of iterations after burn in
-  const size_t Brn = 0;      // number of burn in iterations (these
+  const size_t Nit = 1000;      // number of iterations after burn in
+  const size_t Brn = 1000;      // number of burn in iterations (these
                          // are not included in trajectory averages)
-  const size_t m = 1000;      // compression parameter (after compression vectors have
+  const size_t m = 1000000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   const size_t bw = M+1;         // upper bound on the number of entries in each
                          // column of matrix
@@ -120,6 +147,9 @@ int main() {
   // Initialize a seeded random compressor.
   std::random_device rd;
   Compressor<multiindex, double> compressor(bw * m, rd());
+
+  // cout << Choose<30,15>::value << "\n";
+  // exit(1);
 
 
   // std::bitset<4> a (5);
@@ -154,7 +184,7 @@ int main() {
 
     // Print an iterate summary.
     printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, log(lambda), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, M*log(1.0+lambda), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
   // Generate a trajectory of Nit iterations and 
@@ -187,7 +217,7 @@ int main() {
 
     // Print an iterate summary.
     printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, log(lambda), log(lambda_ave), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, M*(pow(lambda,1.0/M)-1.0), M*(pow(lambda_ave,1.0/M)-1.0), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
   return 0;  
