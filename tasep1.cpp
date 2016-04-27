@@ -80,7 +80,13 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
   col[X].idx = ii;
   col[X].val = 1.0 - X*alpha/M;
 
-  col.curr_size_ = X+1;
+  if ( col[X].val >0 ){
+    col.curr_size_ = X+1;
+  } else{
+    col.curr_size_= X;
+  }
+
+  // for(jj=0;jj<col.curr_size_;jj++) col[jj].val = col[jj].val/col.norm();
 
   // cout << "\n";
   // cout << ii << "\n";
@@ -99,7 +105,11 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
 
 
 int main() {
+<<<<<<< HEAD
   const size_t Nit = 1000000;      // number of iterations after burn in
+=======
+  const size_t Nit = 100000;      // number of iterations after burn in
+>>>>>>> origin/master
   const size_t Brn = 0;      // number of burn in iterations (these
                          // are not included in trajectory averages)
   const size_t m = 1000;      // compression parameter (after compression vectors have
@@ -114,8 +124,8 @@ int main() {
   v.curr_size_ = 1;                                                    // initial vector
   v[0].val = 1.0;
   v[0].idx = 0;
-  // for(size_t jj=0;jj<M;jj++) v[0].idx[2*jj]=true;
-  for(size_t jj=0;jj<M;jj++) v[0].idx[jj]=true;
+  for(size_t jj=0;jj<M;jj++) v[0].idx[2*jj]=true;
+  // for(size_t jj=0;jj<M;jj++) v[0].idx[jj]=true;
   normalize(v);
   // Initialize a seeded random compressor.
   std::random_device rd;
@@ -166,9 +176,13 @@ int main() {
     start = clock();
     compressor.compress(v, m);
 
+<<<<<<< HEAD
     //cout << v[0].val*m << "\t" << v[0].idx << "\n";
+=======
+    // cout << v[0].val*m << "\t" << v[0].idx << "\n";
+>>>>>>> origin/master
 
-    sparse_gemv(1.0, column, bw, v, 0.0, vnew);
+    sparse_gemv_dmc(1.0, column, bw, v, 0.0, vnew, m);
     end = clock();
 
     // Finish the iteration.
@@ -180,15 +194,24 @@ int main() {
 
     // cout << v[0].val*m*exp(-UU) << "\t" << v[0].idx << "\n";
 
+<<<<<<< HEAD
     // for(size_t ii=0; ii<v.curr_size_;ii++){
     //   cout << ii << "\t" << v[ii].val << "\t" << v[ii].idx << "\n";
     // }
     //cout << "\n";
 
+=======
+>>>>>>> origin/master
     // Print an iterate summary.
     printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
        t+1, log(lambda), log(lambda_ave), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
+
+  cout << "\n";
+  for(size_t ii=0; ii<v.curr_size_;ii++){
+    cout << ii << "\t" << v[ii].val*m << "\t" << v[ii].idx << "\n";
+  }
+
 
   return 0;  
 }

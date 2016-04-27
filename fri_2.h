@@ -137,6 +137,13 @@ inline int sparse_gemv(ValType alpha,
         const SparseVector<IdxType, ValType> &x, ValType beta,
         SparseVector<IdxType, ValType> &y);
 
+template <typename IdxType, typename ValType>
+inline int sparse_gemv_dmc(ValType alpha,
+        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+        size_t max_nz_col_entries,
+        const SparseVector<IdxType, ValType> &x, ValType beta,
+        SparseVector<IdxType, ValType> &y, size_t target_nnz);
+
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
 // Declaration
@@ -412,6 +419,95 @@ inline int sparse_gemv(ValType alpha,
   return 0;
 }
 
+template <typename IdxType, typename ValType>
+inline int sparse_gemv_dmc(ValType alpha,
+        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+        size_t max_nz_col_entries,
+        const SparseVector<IdxType, ValType> &x, ValType beta,
+        SparseVector<IdxType, ValType> &y, size_t target_nnz)
+{
+  // Check for correct size; multiplication must not overflow.
+  if (beta != 0) {
+    assert(y.curr_size_ + max_nz_col_entries * x.curr_size_ <= y.max_size_);
+  } else {
+    assert(max_nz_col_entries * x.curr_size_ <= y.max_size_);
+  }
+
+  // First find what to add to the result SparseVector
+  // from the beta multiplication.
+  size_t n_entry_adds;
+  if (beta != 0) {
+    for (size_t ii = 0; ii < y.curr_size_; ii++) {
+      y[ii].val *= beta;
+    } 
+    n_entry_adds = y.curr_size_;
+  } else {
+    n_entry_adds = 0;
+  }
+
+  size_t kk, n_entry_selected;
+  double w, U, column_sum, s;
+  std::mt19937_64 gen_;
+  std::uniform_real_distribution<> uu_;
+
+  // Make a list of all the entries in A scaled
+  // by the entry of x corresponding to the column
+  // containing the particular entry of A; these
+  // will all be added to the result.
+  SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
+  for (size_t jj = 0; jj < x.curr_size_; jj++) {
+    Acolumn(single_row_by_column_adds, x[jj].idx);
+    // cout << (size_t)x[jj].val*target_nnz << "\t" << (size_t) ceil(x[jj].val*target_nnz) << "\n";
+    // assert( (size_t) x[jj].val*target_nnz == (size_t) ceil(x[jj].val*target_nnz) );
+    n_entry_selected = (size_t) ceil(x[jj].val*target_nnz);
+    column_sum = single_row_by_column_adds.norm();
+    // cout << "\n";
+    for(size_t ii = 0; ii < n_entry_selected; ii++){
+      U = uu_(gen_);
+      w = 0;
+      kk=-1;
+      while (w<U){
+        kk++;
+        w += single_row_by_column_adds[kk].val/column_sum;
+      }
+      assert( (kk>=0) & (kk<single_row_by_column_adds.curr_size_) );
+      y[n_entry_adds].val = column_sum/n_entry_selected/target_nnz;
+      y[n_entry_adds].idx = single_row_by_column_adds[kk].idx;
+      n_entry_adds++;
+    }
+  }
+  y.curr_size_ = n_entry_adds;
+
+  // Now take all of those entry additions and resolve
+  // them into a single SparseVector by adding up all
+  // with the same indices.
+
+  // Sort the list of additions according to their indices
+  std::make_heap(y.begin(), y.begin() + y.curr_size_, spcomparebyidx());
+  std::sort_heap(y.begin(), y.begin() + y.curr_size_, spcomparebyidx());
+
+  // Sum additions corresponding to like indices,
+  // collapsing the list so the indices are unique
+  // and all additions are resolved.
+  size_t new_num_entries = 0;
+  size_t curr_entry_add = 0;
+  size_t next_entry_add = 0;
+  while (curr_entry_add < y.curr_size_) {
+    y[new_num_entries] = y[curr_entry_add];
+    next_entry_add = curr_entry_add + 1;
+    while (next_entry_add < y.curr_size_ &&
+           y[next_entry_add].idx == y[curr_entry_add].idx) {
+      y[new_num_entries].val += y[next_entry_add].val;
+      next_entry_add++;
+    }
+    curr_entry_add = next_entry_add;
+    new_num_entries++;
+  }
+  y.curr_size_ = new_num_entries;
+
+  return 0;
+}
+
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
 // Implementation
@@ -597,7 +693,11 @@ inline void Compressor<IdxType, ValType>::compress_xabs_dmc(size_t target_nnz) {
     
   // If there are already fewer than n nonzero
   // entries, no compression is needed.
-  if (nnz <= target_nnz) {
+  // if (nnz <= target_nnz) {
+  //   return;
+  // // Otherwise, perform compression.
+  // } else {
+  if (false) {
     return;
   // Otherwise, perform compression.
   } else {
