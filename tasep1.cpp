@@ -33,8 +33,8 @@ bool operator<(const bitset<N>& x, const bitset<N>& y)
 
 const size_t N = 100;
 const size_t M = 50;
-const double alpha = 1.0;
-const double UU = -2.0/N;
+const double alpha = 1.0/M;
+const double S = -2.0/N;
 
 //typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
 typedef bitset<N> multiindex;
@@ -53,17 +53,13 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
   
   size_t jj;
   size_t X=0;
-  double eUU = exp(UU);
-
-  // cout << eUU << "\n";
-  // exit(1);
+  double eS = exp(S);
   
   for(jj=0;jj<N-1;jj++){
     if( ii[jj] & !ii[jj+1] ){
       col[X].idx = ii;
       col[X].idx[jj]=false;
       col[X].idx[jj+1]=true;
-      // cout << jj << " " << ii[jj]<< " " << ii[jj+1] << " "<< col[X].idx << "\n";
       X++;
     } 
   }
@@ -75,10 +71,10 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
   }
 
   for(jj=0;jj<X;jj++)
-    col[jj].val = alpha*eUU/M;
+    col[jj].val = alpha*eS;
 
   col[X].idx = ii;
-  col[X].val = 1.0 - X*alpha/M;
+  col[X].val = 1.0 - X*alpha;
 
   if ( col[X].val >0 ){
     col.curr_size_ = X+1;
@@ -86,31 +82,15 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
     col.curr_size_= X;
   }
 
-  // for(jj=0;jj<col.curr_size_;jj++) col[jj].val = col[jj].val/col.norm();
-
-  // cout << "\n";
-  // cout << ii << "\n";
-
-  // cout << "X " << X << "\n";
-  // for(jj=0;jj<=X;jj++){    
-  //   cout << "\n";
-  //   cout << jj << "\n";
-  //   cout << col[jj].val << "\n";
-  //   cout << col[jj].idx << "\n";
-  // }
-  
-
   return 0;
 }
 
 
 int main() {
-<<<<<<< HEAD
-  const size_t Nit = 1000000;      // number of iterations after burn in
-=======
+
   const size_t Nit = 100000;      // number of iterations after burn in
->>>>>>> origin/master
-  const size_t Brn = 0;      // number of burn in iterations (these
+
+  const size_t Brn = 10000;      // number of burn in iterations (these
                          // are not included in trajectory averages)
   const size_t m = 1000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
@@ -124,8 +104,8 @@ int main() {
   v.curr_size_ = 1;                                                    // initial vector
   v[0].val = 1.0;
   v[0].idx = 0;
-  for(size_t jj=0;jj<M;jj++) v[0].idx[2*jj]=true;
-  // for(size_t jj=0;jj<M;jj++) v[0].idx[jj]=true;
+  // for(size_t jj=0;jj<M;jj++) v[0].idx[2*jj]=true;
+  for(size_t jj=0;jj<M;jj++) v[0].idx[jj]=true;
   normalize(v);
   // Initialize a seeded random compressor.
   std::random_device rd;
@@ -164,7 +144,7 @@ int main() {
 
     // Print an iterate summary.
     printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, log(lambda), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, (lambda-1.0)/alpha, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
   // Generate a trajectory of Nit iterations and 
@@ -176,13 +156,7 @@ int main() {
     start = clock();
     compressor.compress(v, m);
 
-<<<<<<< HEAD
-    //cout << v[0].val*m << "\t" << v[0].idx << "\n";
-=======
-    // cout << v[0].val*m << "\t" << v[0].idx << "\n";
->>>>>>> origin/master
-
-    sparse_gemv_dmc(1.0, column, bw, v, 0.0, vnew, m);
+    sparse_gemv(1.0, column, bw, v, 0.0, vnew);
     end = clock();
 
     // Finish the iteration.
@@ -192,26 +166,10 @@ int main() {
     normalize(vnew);
     v = vnew;
 
-    // cout << v[0].val*m*exp(-UU) << "\t" << v[0].idx << "\n";
-
-<<<<<<< HEAD
-    // for(size_t ii=0; ii<v.curr_size_;ii++){
-    //   cout << ii << "\t" << v[ii].val << "\t" << v[ii].idx << "\n";
-    // }
-    //cout << "\n";
-
-=======
->>>>>>> origin/master
     // Print an iterate summary.
     printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, log(lambda), log(lambda_ave), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, (lambda-1.0)/alpha, (lambda_ave-1.0)/alpha, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
-
-  cout << "\n";
-  for(size_t ii=0; ii<v.curr_size_;ii++){
-    cout << ii << "\t" << v[ii].val*m << "\t" << v[ii].idx << "\n";
-  }
-
 
   return 0;  
 }

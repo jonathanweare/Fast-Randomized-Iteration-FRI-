@@ -25,8 +25,8 @@ bool operator<(const bitset<N>& x, const bitset<N>& y)
 
 const size_t N = 100;
 const size_t M = 50;
-const double alpha = 0.005;
-const double UU = -2.0;
+const double alpha = 1.0/M;
+const double S = -2.0/N;
 
 typedef bitset<N> multiindex;
 
@@ -36,7 +36,7 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
   
   size_t jj;
   size_t X=0;
-  double eUU = exp(UU);
+  double eS = exp(S);
 
   for(jj=0;jj<N-1;jj++){
     if( ii[jj] & !ii[jj+1] ){
@@ -54,10 +54,10 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
   }
 
   for(jj=0;jj<X;jj++)
-    col[jj].val = alpha*eUU/M;
+    col[jj].val = alpha*eS;
 
   col[X].idx = ii;
-  col[X].val = 1.0 - (double)X*alpha/M;
+  col[X].val = 1.0 - (double)X*alpha;
 
   if ( col[X].val >0 ){
     col.curr_size_ = X+1;
@@ -65,14 +65,14 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
     col.curr_size_= X;
   }
  
-  assert( (double)abs(1 + X*alpha*(eUU-1.0)/M-col.norm())<1e-12 );
+  assert( (double)abs(1 + X*alpha*(eS-1.0)-col.norm())<1e-12 );
 
   return 0;
 }
 
 
 int main() {
-  const size_t Nit = 1000000;      // number of iterations
+  const size_t Nit = 100000;      // number of iterations
   const size_t m = 1000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   const size_t bw = M+1;         // upper bound on the number of entries in each
@@ -129,40 +129,13 @@ int main() {
     
 
     // Resample the walkers according to the column sums so that expected number of walkers is m.
-    // double total_sum = v.norm();
-    // size_t n_entry, n_entry_adds = 0;
-    // for (size_t jj=0;jj<v.curr_size_;jj++){
-    //   n_entry = (size_t)floor(m*v[jj].val/total_sum+uu_(gen_));
-    //   for( size_t ii=0; ii<n_entry; ii++){
-    //     vnew[n_entry_adds].val = 1.0;
-    //     vnew[n_entry_adds].idx = v[jj].idx;
-    //     n_entry_adds++;
-    //   }
-    // }
-    // vnew.curr_size_ = n_entry_adds;
-
-
-
-    // Resample the walkers uniformly so that expected number of walkers is m.
+    double total_sum = v.norm();
     size_t n_entry, n_entry_adds = 0;
     for (size_t jj=0;jj<v.curr_size_;jj++){
-      n_entry = (size_t)floor((double)m/v.curr_size_+uu_(gen_));
-      for( size_t ii=0; ii<n_entry; ii++){
-        vmid[n_entry_adds].val = v[jj].val;
-        vmid[n_entry_adds].idx = v[jj].idx;
-        n_entry_adds++;
-      }
-    }
-    vmid.curr_size_ = n_entry_adds;
-
-    // Resample the walkers according to the column sums with no additional control on population size.
-    n_entry_adds = 0;
-    double total_sum = v.norm();
-    for (size_t jj=0;jj<vmid.curr_size_;jj++){
-      n_entry = (size_t)floor(vmid[jj].val+uu_(gen_));
+      n_entry = (size_t)floor(m*v[jj].val/total_sum+uu_(gen_));
       for( size_t ii=0; ii<n_entry; ii++){
         vnew[n_entry_adds].val = 1.0;
-        vnew[n_entry_adds].idx = vmid[jj].idx;
+        vnew[n_entry_adds].idx = v[jj].idx;
         n_entry_adds++;
       }
     }
@@ -170,10 +143,37 @@ int main() {
 
 
 
+    // // Resample the walkers uniformly so that expected number of walkers is m.
+    // size_t n_entry, n_entry_adds = 0;
+    // for (size_t jj=0;jj<v.curr_size_;jj++){
+    //   n_entry = (size_t)floor((double)m/v.curr_size_+uu_(gen_));
+    //   for( size_t ii=0; ii<n_entry; ii++){
+    //     vmid[n_entry_adds].val = v[jj].val;
+    //     vmid[n_entry_adds].idx = v[jj].idx;
+    //     n_entry_adds++;
+    //   }
+    // }
+    // vmid.curr_size_ = n_entry_adds;
+
+    // // Resample the walkers according to the column sums with no additional control on population size.
+    // n_entry_adds = 0;
+    // double total_sum = v.norm();
+    // for (size_t jj=0;jj<vmid.curr_size_;jj++){
+    //   n_entry = (size_t)floor(vmid[jj].val+uu_(gen_));
+    //   for( size_t ii=0; ii<n_entry; ii++){
+    //     vnew[n_entry_adds].val = 1.0;
+    //     vnew[n_entry_adds].idx = vmid[jj].idx;
+    //     n_entry_adds++;
+    //   }
+    // }
+    // vnew.curr_size_ = n_entry_adds;
+
+
+
     end = clock();
 
     // Finish the iteration.
-    lambda = (total_sum/v.curr_size_ - 1.0 + alpha)/alpha;
+    lambda = total_sum/v.curr_size_;
     double eps = 1.0 / (1.0 + t);
     lambda_ave = (1.0 - eps) * lambda_ave + eps * lambda;
     normalize(vnew);
@@ -181,7 +181,7 @@ int main() {
 
     // Print an iterate summary.
     printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, log(lambda), log(lambda_ave), v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+       t+1, (lambda-1.0)/alpha, (lambda_ave-1.0)/alpha, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
   }
 
   // cout << "\n";
