@@ -141,7 +141,7 @@ inline int sparse_gemv(ValType alpha,
         SparseVector<IdxType, ValType> &y);
 
 template <typename IdxType, typename ValType>
-inline int sparse_gemv_dmc(ValType alpha,
+inline int sparse_gemv_cmp(ValType alpha,
         int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
         size_t max_nz_col_entries,
         const SparseVector<IdxType, ValType> &x, ValType beta,
@@ -433,7 +433,7 @@ inline int sparse_gemv(ValType alpha,
 }
 
 template <typename IdxType, typename ValType>
-inline int sparse_gemv_dmc(ValType alpha,
+inline int sparse_gemv_cmp(ValType alpha,
         int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
         size_t max_nz_col_entries,
         const SparseVector<IdxType, ValType> &x, ValType beta,
