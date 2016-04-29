@@ -145,7 +145,7 @@ inline int sparse_gemv_cmp(ValType alpha,
         int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
         size_t max_nz_col_entries,
         const SparseVector<IdxType, ValType> &x, ValType beta,
-        SparseVector<IdxType, ValType> &y, size_t target_nnz);
+        SparseVector<IdxType, ValType> &y, std::vector<size_t> &col_locs);
 
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
@@ -437,7 +437,7 @@ inline int sparse_gemv_cmp(ValType alpha,
         int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
         size_t max_nz_col_entries,
         const SparseVector<IdxType, ValType> &x, ValType beta,
-        SparseVector<IdxType, ValType> &y, const size_t target_nnz)
+        SparseVector<IdxType, ValType> &y, std::vector<size_t> &col_locs)
 {
   // Check for correct size; multiplication must not overflow.
   if (beta != 0) {
@@ -448,13 +448,13 @@ inline int sparse_gemv_cmp(ValType alpha,
 
   // First find what to add to the result SparseVector
   // from the beta multiplication.
-  SparseVector<IdxType, size_t> entry_to_Idx_map(y.max_size_);
+  SparseVector<IdxType, size_t> entry_to_Idx(y.max_size_);
   size_t n_entry_adds;
   if (beta != 0) {
     for (size_t ii = 0; ii < y.curr_size_; ii++) {
       y[ii].val *= beta;
-      entry_to_Idx_map[ii].val = ii;
-      entry_to_Idx_map[ii].idx = y[ii].idx;
+      entry_to_Idx[ii].val = ii;
+      entry_to_Idx[ii].idx = y[ii].idx;
     } 
     n_entry_adds = y.curr_size_;
   } else {
@@ -471,45 +471,51 @@ inline int sparse_gemv_cmp(ValType alpha,
   // containing the particular entry of A; these
   // will all be added to the result.
   SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
+  col_locs.clear();
+  // cout << col_locs.size() << "\n";
   for (size_t jj = 0; jj < x.curr_size_; jj++) {
+    col_locs.push_back(n_entry_adds);
     Acolumn(single_row_by_column_adds, x[jj].idx);
     for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
-      entry_to_Idx_map[n_entry_adds].val = n_entry_adds;
-      entry_to_Idx_map[n_entry_adds].idx = single_row_by_column_adds[ii].idx;
+      entry_to_Idx[n_entry_adds].val = n_entry_adds;
+      entry_to_Idx[n_entry_adds].idx = single_row_by_column_adds[ii].idx;
       y[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
       y[n_entry_adds].idx = single_row_by_column_adds[ii].idx;
       n_entry_adds++;
     }
   }
   y.curr_size_ = n_entry_adds;
-  entry_to_Idx_map.curr_size_ = n_entry_adds;
+  entry_to_Idx.curr_size_ = n_entry_adds;
+  col_locs.push_back(n_entry_adds);
 
   // Now take all of those entry additions and resolve
   // them into a single SparseVector by adding up all
   // with the same indices.
 
   // Sort the list of additions according to their indices
-  std::make_heap(entry_to_Idx_map.begin(), entry_to_Idx_map.begin() + entry_to_Idx_map.curr_size_, spcomparebyidx());
-  std::sort_heap(entry_to_Idx_map.begin(), entry_to_Idx_map.begin() + entry_to_Idx_map.curr_size_, spcomparebyidx());
+  std::make_heap(entry_to_Idx.begin(), entry_to_Idx.begin() + entry_to_Idx.curr_size_, spcomparebyidx());
+  std::sort_heap(entry_to_Idx.begin(), entry_to_Idx.begin() + entry_to_Idx.curr_size_, spcomparebyidx());
 
   // Sum additions corresponding to like indices,
   // collapsing the list so the indices are unique
   // and all additions are resolved.
-  size_t new_num_entries = 0;
   size_t curr_entry_add = 0;
   size_t next_entry_add = 0;
+  size_t ii;
+  ValType temp_val; 
   while (curr_entry_add < y.curr_size_) {
-    y[new_num_entries] = y[curr_entry_add];
+    temp_val = y[entry_to_Idx[curr_entry_add].val].val;
     next_entry_add = curr_entry_add + 1;
     while (next_entry_add < y.curr_size_ &&
-           y[next_entry_add].idx == y[curr_entry_add].idx) {
-      y[new_num_entries].val += y[next_entry_add].val;
+           entry_to_Idx[next_entry_add].idx == entry_to_Idx[curr_entry_add].idx) {
+      temp_val += y[entry_to_Idx[next_entry_add].val].val;
       next_entry_add++;
     }
+    for( ii=curr_entry_add;ii<next_entry_add;ii++){
+      y[entry_to_Idx[ii].val].val = temp_val/(next_entry_add-curr_entry_add);
+    }
     curr_entry_add = next_entry_add;
-    new_num_entries++;
   }
-  y.curr_size_ = new_num_entries;
 
   return 0;
 }
@@ -722,7 +728,7 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
     if( xabs_[ii].val > 0) nnz++;
   }
 
-  cout << nnz_large << "\t" << nnz << "\t" << target_nnz << "\n";
+  // cout << nnz_large << "\t" << nnz << "\t" << target_nnz << "\n";
   // assert( nnz == target_nnz );
   }
 }
