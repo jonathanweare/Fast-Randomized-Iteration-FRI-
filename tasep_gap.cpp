@@ -31,8 +31,8 @@ bool operator<(const bitset<N>& x, const bitset<N>& y)
 
 #include "fri_2.h"
 
-const size_t N = 100;
-const size_t M = 50;
+const size_t N = 50;
+const size_t M = 25;
 const double alpha = 1.0/M;
 
 //typedef bitset<numeric_limits<unsigned long long>::digits> multiindex;
@@ -90,7 +90,7 @@ int main() {
 
   const size_t Brn = 10000;      // number of burn in iterations (these
                          // are not included in trajectory averages)
-  const size_t m = 10000;      // compression parameter (after compression vectors have
+  const size_t m = 10000000;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   const size_t bw = M+1;         // upper bound on the number of entries in each
                          // column of matrix
