@@ -472,7 +472,7 @@ inline int sparse_gemv_cmp(ValType alpha,
   // will all be added to the result.
   SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
   col_locs.clear();
-  // cout << col_locs.size() << "\n";
+  cout << col_locs.size() << "\n";
   for (size_t jj = 0; jj < x.curr_size_; jj++) {
     col_locs.push_back(n_entry_adds);
     Acolumn(single_row_by_column_adds, x[jj].idx);

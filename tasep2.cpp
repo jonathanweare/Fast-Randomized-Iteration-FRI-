@@ -88,9 +88,9 @@ int column(SparseVector<multiindex, double> &col, const multiindex ii){
 
 int main() {
 
-  const size_t Nit = 100;      // number of iterations after burn in
+  const size_t Nit = 0;      // number of iterations after burn in
 
-  const size_t Brn = 0;      // number of burn in iterations (these
+  const size_t Brn = 10;      // number of burn in iterations (these
                          // are not included in trajectory averages)
   const size_t m = 10;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
@@ -134,7 +134,7 @@ int main() {
   
   // Run Brn iterations without accumulating trajectory
   // averages to discard initial transient.
-  double lambda;
+  double lambda, vnorm;
   size_t ii, jj, entries_added;
   for (size_t t = 0; t < Brn; t++) {
 
@@ -164,7 +164,11 @@ int main() {
       }
       // cout << "\n";
       vnew.curr_size_ = col_locs[ii+1]-col_locs[ii];
-      compressor.compress(vnew, (size_t)floor(m*vnew.norm()+uu_(gen_)));
+      vnorm = vnew.norm();
+      compressor.compress(vnew, (size_t)floor(m*vnorm+uu_(gen_)));
+      if( m*vnorm< 1.0 ){
+        for(jj=0;jj<vnew.curr_size_;jj++) vnew[jj].val /= m*vnorm;
+      }
       for( jj=0; jj<vnew.curr_size_; jj++){
         v[entries_added] = vnew[jj];
         entries_added++;
