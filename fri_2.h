@@ -140,13 +140,6 @@ inline int sparse_gemv(ValType alpha,
         const SparseVector<IdxType, ValType> &x, ValType beta,
         SparseVector<IdxType, ValType> &y);
 
-template <typename IdxType, typename ValType>
-inline int sparse_gemv_cmp(ValType alpha,
-        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries,
-        const SparseVector<IdxType, ValType> &x, ValType beta,
-        SparseVector<IdxType, ValType> &y, std::vector<size_t> &col_locs);
-
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
 // Declaration
@@ -432,94 +425,6 @@ inline int sparse_gemv(ValType alpha,
   return 0;
 }
 
-template <typename IdxType, typename ValType>
-inline int sparse_gemv_cmp(ValType alpha,
-        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries,
-        const SparseVector<IdxType, ValType> &x, ValType beta,
-        SparseVector<IdxType, ValType> &y, std::vector<size_t> &col_locs)
-{
-  // Check for correct size; multiplication must not overflow.
-  if (beta != 0) {
-    assert(y.curr_size_ + max_nz_col_entries * x.curr_size_ <= y.max_size_);
-  } else {
-    assert(max_nz_col_entries * x.curr_size_ <= y.max_size_);
-  }
-
-  // First find what to add to the result SparseVector
-  // from the beta multiplication.
-  SparseVector<IdxType, size_t> entry_to_Idx(y.max_size_);
-  size_t n_entry_adds;
-  if (beta != 0) {
-    for (size_t ii = 0; ii < y.curr_size_; ii++) {
-      y[ii].val *= beta;
-      entry_to_Idx[ii].val = ii;
-      entry_to_Idx[ii].idx = y[ii].idx;
-    } 
-    n_entry_adds = y.curr_size_;
-  } else {
-    n_entry_adds = 0;
-  }
-
-  size_t kk, n_entry_selected;
-  double w, U, column_sum, s;
-  std::mt19937_64 gen_;
-  std::uniform_real_distribution<> uu_;
-
-  // Make a list of all the entries in A scaled
-  // by the entry of x corresponding to the column
-  // containing the particular entry of A; these
-  // will all be added to the result.
-  SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
-  col_locs.clear();
-  cout << col_locs.size() << "\n";
-  for (size_t jj = 0; jj < x.curr_size_; jj++) {
-    col_locs.push_back(n_entry_adds);
-    Acolumn(single_row_by_column_adds, x[jj].idx);
-    for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
-      entry_to_Idx[n_entry_adds].val = n_entry_adds;
-      entry_to_Idx[n_entry_adds].idx = single_row_by_column_adds[ii].idx;
-      y[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
-      y[n_entry_adds].idx = single_row_by_column_adds[ii].idx;
-      n_entry_adds++;
-    }
-  }
-  y.curr_size_ = n_entry_adds;
-  entry_to_Idx.curr_size_ = n_entry_adds;
-  col_locs.push_back(n_entry_adds);
-
-  // Now take all of those entry additions and resolve
-  // them into a single SparseVector by adding up all
-  // with the same indices.
-
-  // Sort the list of additions according to their indices
-  std::make_heap(entry_to_Idx.begin(), entry_to_Idx.begin() + entry_to_Idx.curr_size_, spcomparebyidx());
-  std::sort_heap(entry_to_Idx.begin(), entry_to_Idx.begin() + entry_to_Idx.curr_size_, spcomparebyidx());
-
-  // Sum additions corresponding to like indices,
-  // collapsing the list so the indices are unique
-  // and all additions are resolved.
-  size_t curr_entry_add = 0;
-  size_t next_entry_add = 0;
-  size_t ii;
-  ValType temp_val; 
-  while (curr_entry_add < y.curr_size_) {
-    temp_val = y[entry_to_Idx[curr_entry_add].val].val;
-    next_entry_add = curr_entry_add + 1;
-    while (next_entry_add < y.curr_size_ &&
-           entry_to_Idx[next_entry_add].idx == entry_to_Idx[curr_entry_add].idx) {
-      temp_val += y[entry_to_Idx[next_entry_add].val].val;
-      next_entry_add++;
-    }
-    for( ii=curr_entry_add;ii<next_entry_add;ii++){
-      y[entry_to_Idx[ii].val].val = temp_val/(next_entry_add-curr_entry_add);
-    }
-    curr_entry_add = next_entry_add;
-  }
-
-  return 0;
-}
-
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
 // Implementation
@@ -666,132 +571,10 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
       jj++; 
     }
 
-
-
-    // size_t target_nnz_from_small = target_nnz - nnz_large;
-    // double target_small_entry_average = sum_small / (double) target_nnz_from_small;
-    // size_t ii;
-    // for (ii=0; ii<n_small_entries; ii++){
-    //   xabs_[ii].val = target_small_entry_average*floor(xabs_[ii].val/target_small_entry_average + uu_(gen_));
-    //   assert( xabs_[ii].val <= target_small_entry_average );
-    // }
-
-
-
-    // //double Tol = 1e-15;
-    // if (nnz_large < target_nnz) {
-    //   double w = -uu_(gen_);
-    //   size_t nnz_from_small = 0;
-    //   size_t target_nnz_from_small = target_nnz - nnz_large;
-    //   double target_small_entry_average = sum_small / (double) target_nnz_from_small;
-    //   // For every small entry,
-    //   size_t ii;
-    //   for (ii = 0; ii < n_small_entries; ii++) {
-    //     // If there are still more nonzeros needed
-    //     // for the compression,
-    //     if (nnz < target_nnz) {
-    //       // For each entry, add to w an amount equal to the
-    //       // current entry value divided by the target average
-    //       // entry value.
-    //       w += xabs_[ii].val / target_small_entry_average;
-    //       // If enough small nonzeros are already 
-    //       // kept to exceed the current w, set this
-    //       // entry's value to zero.
-    //       if (nnz_from_small > (size_t) floor(w)) {
-    //         xabs_[ii].val = 0;
-    //       // Otherwise, use this small entry to make
-    //       // a new nonzero in the compressed vector.
-    //       } else {
-    //         xabs_[ii].val = target_small_entry_average;
-    //         nnz_from_small++;
-    //         nnz++;
-    //       }
-    //     // Otherwise set all remaining entries to zero.
-    //     } else {
-    //       xabs_[ii].val = 0;
-    //     }      
-    //   }
-    // // If enough large entries were kept exactly or 
-    // // the sum of small entries is not large enough,
-    // // set all remaining (small) entries to zero.
-    // } else {
-    //   for (size_t ii = 0; ii < n_small_entries; ii++) {
-    //     xabs_[ii].val = 0;
-    //   }
-    // }
-    // if (nnz > target_nnz) {
-    //   std::cerr << "Too many nonzeros in compress\n";
-    // }
-
-  nnz = 0;
-  for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-    if( xabs_[ii].val > 0) nnz++;
-  }
-
-  // cout << nnz_large << "\t" << nnz << "\t" << target_nnz << "\n";
-  // assert( nnz == target_nnz );
-  }
-}
-
-template <typename IdxType, typename ValType>
-inline void Compressor<IdxType, ValType>::compress_xabs_dmc(size_t target_nnz) {
-  // First count the number of actually
-  // non-zero entries and check that
-  // all entries are non-negative.
-  size_t nnz = xabs_.curr_size_;
-  for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-    assert(xabs_[ii].val >= 0);
-    if (xabs_[ii].val == 0) {
-      nnz -= 1;
-    }
-  }
-    
-  // If there are already fewer than n nonzero
-  // entries, no compression is needed.
-  // if (nnz <= target_nnz) {
-  //   return;
-  // // Otherwise, perform compression.
-  // } else {
-  if (false) {
-    return;
-  // Otherwise, perform compression.
-  } else {
-
-    double target_entry_average = xabs_.norm()/(double) target_nnz;
-    // For every small entry,
+    nnz = 0;
     for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-      // For each entry, add to w an amount equal to the
-      // current entry value divided by the target average
-      // entry value.
-      xabs_[ii].val = target_entry_average * floor(xabs_[ii].val/target_entry_average + uu_(gen_));
+      if( xabs_[ii].val > 0) nnz++;
     }
-
-    // cout << xabs_.norm()*target_nnz << "\n";
-    // cout << xabs_[0].val*target_nnz << "\n";
-
-    // double U = uu_(gen_);
-    // double w = 0;
-    // size_t nnz_added = 0;
-    // size_t nnz_before_entry;
-    // double target_entry_average = xabs_.norm()/(double) target_nnz;
-    // // For every small entry,
-    // for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-    //   // For each entry, add to w an amount equal to the
-    //   // current entry value divided by the target average
-    //   // entry value.
-    //   w += xabs_[ii].val / target_entry_average;
-    //   // If enough small nonzeros are already 
-    //   // kept to exceed the current w, set this
-    //   // entry's value to zero.
-    //   nnz_before_entry = nnz_added;
-    //   nnz_added = (size_t)ceil(w-U);
-    //   // while ((double)nnz_added <= w) nnz_added++;
-    //   xabs_[ii].val = target_entry_average * (double)(nnz_added-nnz_before_entry);
-
-    //   // if( xabs_[ii].val>0 ) U = uu_(gen_);  
-    // }
-
-    assert(xabs_.norm()>0);
   }
 }
 
