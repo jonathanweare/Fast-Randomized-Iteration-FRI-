@@ -1,14 +1,11 @@
 // A driver to run Fast Randomized Iteration
-// applied to computing the dominant
-// eigenvalue (the partition function)
-// of the transfer matrix associated with
-// the 2D Ising model
-// (c) Jonathan Weare 2015
+// applied to solving Ax=b
+// (c) Jonathan Weare 2019
 
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
-#include "fri_2.h"
+#include "fri_strat_col.h"
 
 using namespace std;
 

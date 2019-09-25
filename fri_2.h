@@ -124,6 +124,15 @@ inline int sparse_axpy(ValType alpha,
          const SparseVector<IdxType, ValType> &x,
          SparseVector<IdxType, ValType> &y);
 
+// Perform  y <- α x + y.
+// y must be large enough to contain 
+// all entries of x and y; no allocation
+// will be performed by this routine.
+template <typename IdxType, typename ValType>
+inline int sparse_axpy_v2(ValType alpha,
+         const SparseVector<IdxType, ValType> &x,
+         SparseVector<IdxType, ValType> &y);
+
 // sparse_gemv computes y <-- alpha A x + beta y
 // where x and y are sparse vectors and the matrix 
 // A is specified by a routine Acolumn that returns 
@@ -330,6 +339,73 @@ inline int sparse_axpy(ValType alpha,
     else {
       y[n_result_entries].idx = x[jj].idx;
       y[n_result_entries].val = alpha * x[jj].val;
+      n_result_entries++;
+    }
+  }
+  // If all x entries are handled and y entries remain, move
+  // them all in.
+  while (y_entries_begin < y_entries_end){
+    y[n_result_entries] = y[y_entries_begin];
+    y_entries_begin++;
+    n_result_entries++;
+  }
+  // Now all entries are set; the new size is known.
+  y.curr_size_ = n_result_entries;
+  return 0;
+}
+
+// Perform  y <- α x + y.
+// y must be large enough to contain 
+// all entries of x and y; no allocation
+// will be performed by this routine.
+template <typename IdxType, typename ValType>
+inline int sparse_axpy_v2(ValType alpha,
+         const SparseVector<IdxType, ValType> &x,
+         SparseVector<IdxType, ValType> &y) {
+  // If alpha is not zero, then ensure the
+  // result vector y can store the entire sum.
+  if (alpha != 0) {
+    assert(x.curr_size_ + y.curr_size_ <= y.max_size_);
+  // If alpha is zero, this is a do-nothing operation.
+  // Short circuit it.
+  } else {
+    return 0;
+  }
+
+  // Shift the entries of y to past where they could possibly
+  // reside in the new vector.
+  for (size_t jj = y.curr_size_; jj > 0; jj--)
+      y[x.curr_size_ + jj - 1] = y[jj];
+  // Add in entries of either x or y with smallest indices. 
+  size_t y_entries_begin = x.curr_size_;
+  size_t y_entries_end = x.curr_size_ + y.curr_size_;
+  size_t n_result_entries = 0;
+  // Move over the entries in each vector from least
+  // index to highest, iterating on the x vector as
+  // the driver loop and y as a following iterator.
+  size_t jj = 0;
+  while (jj < x.curr_size_){
+    // If there are y entries left and the y entry has lower
+    // index, move it in.
+    while (y_entries_begin < y_entries_end && y[y_entries_begin].idx < x[jj].idx){
+      y[n_result_entries] = y[y_entries_begin];
+      y_entries_begin++;
+      n_result_entries++;
+    }
+    // If the x and y entries had equal index, add the x 
+    // entry times alpha to the y entry.
+    while (jj<x.curr_size_ && y_entries_begin < y_entries_end && x[jj].idx == y[y_entries_begin].idx){
+      y[n_result_entries] = y[y_entries_begin];
+      y[n_result_entries].val += alpha * x[jj].val;
+      jj++;
+      y_entries_begin++;
+      n_result_entries++;
+    }
+    // Otherwise, just move the x entry times alpha in. 
+    while (jj<x.curr_size_ && y[y_entries_begin].idx > x[jj].idx){
+      y[n_result_entries].idx = x[jj].idx;
+      y[n_result_entries].val = alpha * x[jj].val;
+      jj++;
       n_result_entries++;
     }
   }
