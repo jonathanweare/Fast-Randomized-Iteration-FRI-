@@ -358,6 +358,7 @@ inline int sparse_axpy(ValType alpha,
 // y must be large enough to contain 
 // all entries of x and y; no allocation
 // will be performed by this routine.
+// *** UNTESTED ****
 template <typename IdxType, typename ValType>
 inline int sparse_axpy_v2(ValType alpha,
          const SparseVector<IdxType, ValType> &x,
@@ -500,6 +501,7 @@ inline int sparse_gemv(ValType alpha,
 
   return 0;
 }
+
 
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
