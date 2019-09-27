@@ -2,8 +2,8 @@
 // subroutines
 // (c) Jonathan Weare 2015
 
-#ifndef _fri_2_h_
-#define _fri_2_h_
+#ifndef _fri_3_h_
+#define _fri_3_h_
 
 #include <iostream> 
 #include <cassert>
@@ -14,7 +14,7 @@
 // #include "fri_index.h"
 
 //---------------------------------------------------------
-// Sparse vector and matrix entry definition and helper routines
+// Sparse vector entry definition and helper routines
 // Declaration
 //---------------------------------------------------------
 
@@ -40,6 +40,12 @@ struct spveccomparebyval;
 // Relies on IdxType having a less than comparator.
 struct spveccomparebyidx;
 
+
+//---------------------------------------------------------
+// Sparse matrix entry definition and helper routines
+// Declaration
+//---------------------------------------------------------
+
 // An entry of a sparse matrix consists of
 // two indices and a value. Each index
 // and the value must have a
@@ -60,12 +66,18 @@ struct SparseMatrixEntry {
 // Relies on ValType having a less than comparator.
 struct spmatcomparebyval;
 
-// Compare two sparse matrix entries by index pair.
+// Compare two sparse matrix entries by lexicographic
+// ordering of indices with rowidx first.
 // Relies on IdxType having a less than comparator.
-struct spmatcomparebyidx;
+struct spmatcomparebyrowidxfirst;
+
+// Compare two sparse matrix entries by lexicographic
+// ordering of indices with colidx first.
+// Relies on IdxType having a less than comparator.
+struct spmatcomparebycolidxfirst;
 
 //---------------------------------------------------------
-// Sparse vector and matrix class definitions and routines
+// Sparse vector class definitions and routines
 // Declaration
 //---------------------------------------------------------
 
@@ -174,6 +186,13 @@ inline int sparse_gemv(ValType alpha,
         SparseVector<IdxType, ValType> &y);
 
 
+
+
+//---------------------------------------------------------
+// Sparse matrix class definitions and routines
+// Declaration
+//---------------------------------------------------------
+
 // SparseMatrix represents a sparse matrix implemented
 // as an array of SparseMatrixEntry values. The underlying
 // array is fixed size to avoid costly allocations, 
@@ -202,7 +221,7 @@ public:
 
   // Index reordering from Compressed Column Storage (CCS)
   // to Compressed Row Storage (CRS)
-  std::vector<size_t> crs_order;
+  inline bool set_crs_order();
 
   // Accessors for the underlying vector so one can do
   // some of the normal vector manipulation, but not all.
@@ -215,9 +234,14 @@ public:
   inline spmat_iterator begin() {return entries_.begin();}
   inline spmat_iterator end() {return entries_.begin() + curr_size_;}
 
+  inline SparseMatrixEntry<IdxType, ValType>& crs(const size_t idx);
+
 private:
-  // Do not allow manual resizing and pushing/popping of the entries vector.
+  // Do not allow manual resizing and pushing/popping of the entries 
+  // or CRS ordering vectors.
   std::vector<SparseMatrixEntry<IdxType, ValType>> entries_;
+  std::vector<size_t> crs_order_;
+  bool is_crs_ordered_;
 };
 
 
@@ -264,8 +288,10 @@ public:
   void compress(SparseVector<IdxType, ValType> &x, size_t target_nnz);
 };
 
+
+
 //---------------------------------------------------------
-// Sparse vector and matrix entry definition and helper routines
+// Sparse vector entry definition and helper routines
 // Implementation
 //---------------------------------------------------------
 
@@ -288,6 +314,11 @@ struct spveccomparebyidx {
 };
 
 
+//---------------------------------------------------------
+// Sparse matrix entry definition and helper routines
+// Implementation
+//---------------------------------------------------------
+
 // Compare two sparse matrix entries by value.
 // Relies on ValType having a less than comparator.
 struct spmatcomparebyval {
@@ -298,7 +329,7 @@ struct spmatcomparebyval {
 };
 
 // Compare two sparse matrix entries by lexicographic 
-// order with row index first.
+// ordering of indices with row index first.
 // Relies on IdxType having a less than comparator.
 struct spmatcomparebyrowidxfirst {
   template <typename IdxType, typename ValType>
@@ -310,7 +341,7 @@ struct spmatcomparebyrowidxfirst {
 };
 
 // Compare two sparse matrix entries by lexicographic 
-// order with column index first.
+// ordering of indices with column index first.
 struct spmatcomparebycolidxfirst {
   template <typename IdxType, typename ValType>
   inline bool operator () (const SparseMatrixEntry<IdxType, ValType> &a, const SparseMatrixEntry<IdxType, ValType> &b) {
@@ -351,11 +382,11 @@ inline ValType SparseVector<IdxType, ValType>::sum() const {
 }
 
   // Constructor taking max_size as an argument and 
-  // allocating space for that many SparseEntry structs.
+  // allocating space for that many SparseVectorEntry structs.
 template <typename IdxType, typename ValType>
 inline SparseVector<IdxType, ValType>::SparseVector(size_t max_size) : max_size_(max_size) {
   curr_size_ = 0;
-  entries_ = std::vector<SparseEntry<IdxType, ValType>>(max_size);
+  entries_ = std::vector<SparseVectorEntry<IdxType, ValType>>(max_size);
 }
 
   // Assignment by value up to current size, leaving
@@ -612,6 +643,126 @@ inline int sparse_gemv(ValType alpha,
 
   return 0;
 }
+
+
+
+
+
+
+//---------------------------------------------------------
+// Sparse matrix class definition and routines
+// Implementation
+//---------------------------------------------------------
+
+// Constructor taking max_size as an argument and 
+// allocating space for that many SparseMatrixEntry structs.
+template <typename IdxType, typename ValType>
+inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_size) : max_size_(max_size) {
+  curr_size_ = 0;
+  crs_order_ = std::vector<size_t>(max_size);
+  entries_ = std::vector<SparseMatrixEntry<IdxType, ValType>>(max_size);
+  is_crs_ordered_ = false;
+}
+
+// Find the index that reorders the columns into CRS order.
+// On output is_crs_ordered will be set to true and that
+// value will be returned.
+template <typename IdxType, typename ValType>
+inline bool SparseMatrix<IdxType, ValType>::set_crs_order(){
+  std::iota(begin(crs_order_), begin(crs_order_)+curr_size_, static_cast<size_t>(0));
+  std::sort(begin(crs_order_), begin(crs_order_)+curr_size_,
+        [&](size_t a, size_t b) { return spmatcomparebyrowidxfirst(entries_[a],entries_[b]); }
+  return is_crs_ordered_=true;
+}
+
+// Quary the entries in CRS order.  The CRS order
+// must have already been set by a 
+// call to set_crs_order()
+template <typename IdxType, typename ValType>
+inline SparseMatrixEntry<IdxType, ValType>& SparseMatrix<IdxType,ValType>::crs(const size_t idx) {
+  assert(is_crs_ordered_);
+  return entries_[crs_order_[idx]];
+}
+
+// // Assignment by column.
+// template <typename IdxType, typename ValType>
+// inline SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType,ValType> &other, const size_t idx) {
+//   while 
+// }
+
+
+  // Assignment by value up to current size, leaving
+  // max size & other entries unchanged.
+template <typename IdxType, typename ValType>
+inline SparseMatrix<IdxType, ValType>& SparseMatrix<IdxType, ValType>::operator=(const SparseMatrix<IdxType, ValType> &other) {
+  assert(other.curr_size_ <= max_size_);
+  curr_size_ = other.curr_size_;
+  for (size_t i = 0; i < other.curr_size_; i++) {
+    entries_[i] = other.entries_[i];
+    //crs_order_[i] = other.crs_order_[i];
+  }
+  is_crs_ordered_ = false;
+
+  return *this;
+}
+
+// Print a matrix to cout by printing the number 
+// of nonzero entries and then printing each entry
+// as a val idx pair. 
+template <typename IdxType, typename ValType>
+inline void print_vector(SparseMatrix<IdxType, ValType> &mat) {
+  std::cout << mat.curr_size_ << std::endl;
+  for (size_t jj = 0; jj < mat.curr_size_; jj++) {
+    std::cout << mat[jj].val << "\t " << mat[jj].rowidx << "\t" << mat[jj].colidx << std::endl;
+  }
+  std::cout << std::endl;
+}
+
+
+// spcolwisemv multiplies each column of 
+// the sparse matrix A by the corresponding
+// entry of the sparse vector x.
+// A is specified by a routine Acolumn that returns 
+// a single column of A.  max_nz_col_entries is an
+// upper bound on the number of non-zero entries in
+// any column of A.  The resulting matrix B 
+// is assumed to be of max_size
+// at least max_nz_col_entries * x.curr_size_.
+// B is overwritten upon output.
+template <typename IdxType, typename ValType>
+inline int spcolwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+        size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x,
+        SparseMatrix<IdxType, ValType> &B)
+{
+  // Check for correct size; multiplication must not overflow.
+  assert(max_nz_col_entries * x.curr_size_ <= B.max_size_);
+
+  // Make a list of all the entries in A scaled
+  // by the entry of x corresponding to the column
+  // containing the particular entry of A; these
+  // will all be added to the result.
+  size_t n_entry_adds=0;
+  SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
+  for (size_t jj = 0; jj < x.curr_size_; jj++) {
+    Acolumn(single_row_by_column_adds, x[jj].idx);
+    for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
+      B[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
+      B[n_entry_adds].rowidx = single_row_by_column_adds[ii].idx;
+      B[n_entry_adds].colidx = x[jj].idx
+      n_entry_adds++;
+    }
+  }
+  B.curr_size_ = n_entry_adds;
+
+  // Now we'll find the CRS ordering of B
+  assert(B.set_crs_order());
+
+  return 0;
+}
+
+
+
+
 
 
 //---------------------------------------------------------
