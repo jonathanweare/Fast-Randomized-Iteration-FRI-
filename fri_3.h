@@ -14,11 +14,11 @@
 // #include "fri_index.h"
 
 //---------------------------------------------------------
-// Sparse vector entry definition and helper routines
+// Sparse vector and matrix entry definition and helper routines
 // Declaration
 //---------------------------------------------------------
 
-// An entry of a sparse matrix consists of
+// An entry of a sparse vector consists of
 // an index and a value. Both must have a
 // less than operator, and ValType must also
 // support multiplication, division, addition,
@@ -27,32 +27,56 @@
 // with a return value that casts to 'double'
 // unambiguously.
 template <typename IdxType, typename ValType>
-struct SparseEntry {
+struct SparseVectorEntry {
   IdxType idx;
   ValType val;
 };
 
 // Compare two sparse vector entries by value.
 // Relies on ValType having a less than comparator.
-struct spcomparebyval;
+struct spveccomparebyval;
 
 // Compare two sparse vector entries by index.
 // Relies on IdxType having a less than comparator.
-struct spcomparebyidx;
+struct spveccomparebyidx;
+
+// An entry of a sparse matrix consists of
+// two indices and a value. Each index
+// and the value must have a
+// less than operator, and ValType must also
+// support multiplication, division, addition,
+// subtraction, assignment to zero, and an 
+// absolute value function named 'abs'
+// with a return value that casts to 'double'
+// unambiguously.
+template <typename IdxType, typename ValType>
+struct SparseMatrixEntry {
+  IdxType rowidx;
+  IdxType colidx;
+  ValType val;
+};
+
+// Compare two sparse matrix entries by value.
+// Relies on ValType having a less than comparator.
+struct spmatcomparebyval;
+
+// Compare two sparse matrix entries by index pair.
+// Relies on IdxType having a less than comparator.
+struct spmatcomparebyidx;
 
 //---------------------------------------------------------
-// Sparse vector class definition and routines
+// Sparse vector and matrix class definitions and routines
 // Declaration
 //---------------------------------------------------------
 
 // SparseVector represents a sparse vector implemented
-// as an array of SparseEntry values. The underlying
+// as an array of SparseVectorEntry values. The underlying
 // array is fixed size to avoid costly allocations, 
 // this is max_size_, but the size of the actual vector 
 // is dynamic and equal to curr_size_. There are no 
 // guarantees on SparseEntry values past curr_size_.
 // They can be  subscripted as if they were a vector of
-// SparseEntry structs and also provide begin() and end()
+// SparseVectorEntry structs and also provide begin() and end()
 // based on curr_size_.
 
 // SparseVectors are added using sp_axpy and multiplied
@@ -90,15 +114,15 @@ public:
   // Specifically, subscripting and iterator begin and end
   // are provided. Incremental queue and stack function is 
   // intentionally not provided.
-  inline SparseEntry<IdxType, ValType>& operator[](const size_t idx) {return entries_[idx];}
-  inline const SparseEntry<IdxType, ValType>& operator[](const size_t idx) const {return entries_[idx];}
-  typedef typename std::vector<SparseEntry<IdxType, ValType>>::iterator sp_iterator;
-  inline sp_iterator begin() {return entries_.begin();}
-  inline sp_iterator end() {return entries_.begin() + curr_size_;}
+  inline SparseVectorEntry<IdxType, ValType>& operator[](const size_t idx) {return entries_[idx];}
+  inline const SparseVectorEntry<IdxType, ValType>& operator[](const size_t idx) const {return entries_[idx];}
+  typedef typename std::vector<SparseVectorEntry<IdxType, ValType>>::iterator spvec_iterator;
+  inline spvec_iterator begin() {return entries_.begin();}
+  inline spvec_iterator end() {return entries_.begin() + curr_size_;}
 
 private:
   // Do not allow manual resizing and pushing/popping of the entries vector.
-  std::vector<SparseEntry<IdxType, ValType>> entries_;
+  std::vector<SparseVectorEntry<IdxType, ValType>> entries_;
 };
 
 // Normalize a sparse vector by the sum of its entry vals.
@@ -149,6 +173,55 @@ inline int sparse_gemv(ValType alpha,
         const SparseVector<IdxType, ValType> &x, ValType beta,
         SparseVector<IdxType, ValType> &y);
 
+
+// SparseMatrix represents a sparse matrix implemented
+// as an array of SparseMatrixEntry values. The underlying
+// array is fixed size to avoid costly allocations, 
+// this is max_size_, but the size of the actual matrix 
+// is dynamic and equal to curr_size_. There are no 
+// guarantees on SparseMatrixEntry values past curr_size_.
+// They can be  subscripted as if they were a vector of
+// SparseMatrixEntry structs and also provide begin() and end()
+// based on curr_size_.
+template <typename IdxType, typename ValType>
+class SparseMatrix {
+public:
+  // Number of nonzero entries actually in the vector.
+  size_t curr_size_;
+  // Number of nonzero entries that could be in the vector.
+  // Must not change.
+  const size_t max_size_;
+
+  // Constructor taking max_size as an argument and 
+  // allocating space for that many SparseMatrixEntry structs.
+  SparseMatrix(size_t max_size);
+
+  // Assignment by value up to current size, leaving
+  // max size & other entries unchanged.
+  inline SparseMatrix<IdxType, ValType>& operator=(const SparseMatrix<IdxType, ValType> &other);
+
+  // Index reordering from Compressed Column Storage (CCS)
+  // to Compressed Row Storage (CRS)
+  std::vector<size_t> crs_order;
+
+  // Accessors for the underlying vector so one can do
+  // some of the normal vector manipulation, but not all.
+  // Specifically, subscripting and iterator begin and end
+  // are provided. Incremental queue and stack function is 
+  // intentionally not provided.
+  inline SparseMatrixEntry<IdxType, ValType>& operator[](const size_t idx) {return entries_[idx];}
+  inline const SparseMatrixEntry<IdxType, ValType>& operator[](const size_t idx) const {return entries_[idx];}
+  typedef typename std::vector<SparseMatrixEntry<IdxType, ValType>>::iterator spmat_iterator;
+  inline spmat_iterator begin() {return entries_.begin();}
+  inline spmat_iterator end() {return entries_.begin() + curr_size_;}
+
+private:
+  // Do not allow manual resizing and pushing/popping of the entries vector.
+  std::vector<SparseMatrixEntry<IdxType, ValType>> entries_;
+};
+
+
+
 //---------------------------------------------------------
 // Sparse vector compression helper class and routines
 // Declaration
@@ -192,27 +265,65 @@ public:
 };
 
 //---------------------------------------------------------
-// Sparse vector entry definition and helper routines
+// Sparse vector and matrix entry definition and helper routines
 // Implementation
 //---------------------------------------------------------
 
 // Compare two sparse vector entries by value.
 // Relies on ValType having a less than comparator.
-struct spcomparebyval {
+struct spveccomparebyval {
   template <typename IdxType, typename ValType>
-  inline bool operator () (const SparseEntry<IdxType, ValType> &a, const SparseEntry<IdxType, ValType> &b) {
+  inline bool operator () (const SparseVectorEntry<IdxType, ValType> &a, const SparseVectorEntry<IdxType, ValType> &b) {
     return a.val < b.val;
   }
 };
 
 // Compare two sparse vector entries by index.
 // Relies on IdxType having a less than comparator.
-struct spcomparebyidx {
+struct spveccomparebyidx {
   template <typename IdxType, typename ValType>
-  inline bool operator () (const SparseEntry<IdxType, ValType> &a, const SparseEntry<IdxType, ValType> &b) {
+  inline bool operator () (const SparseVectorEntry<IdxType, ValType> &a, const SparseVectorEntry<IdxType, ValType> &b) {
     return a.idx < b.idx;
   }
 };
+
+
+// Compare two sparse matrix entries by value.
+// Relies on ValType having a less than comparator.
+struct spmatcomparebyval {
+  template <typename IdxType, typename ValType>
+  inline bool operator () (const SparseMatrixEntry<IdxType, ValType> &a, const SparseMatrixEntry<IdxType, ValType> &b) {
+    return a.val < b.val;
+  }
+};
+
+// Compare two sparse matrix entries by lexicographic 
+// order with row index first.
+// Relies on IdxType having a less than comparator.
+struct spmatcomparebyrowidxfirst {
+  template <typename IdxType, typename ValType>
+  inline bool operator () (const SparseMatrixEntry<IdxType, ValType> &a, const SparseMatrixEntry<IdxType, ValType> &b) {
+    if a.rowidx<b.rowidx return true;
+    else if a.rowidx==b.rowidx & a.colidx<b.colidx return true;
+    else return false;
+  }
+};
+
+// Compare two sparse matrix entries by lexicographic 
+// order with column index first.
+struct spmatcomparebycolidxfirst {
+  template <typename IdxType, typename ValType>
+  inline bool operator () (const SparseMatrixEntry<IdxType, ValType> &a, const SparseMatrixEntry<IdxType, ValType> &b) {
+    if a.colidx<b.colidx return true;
+    else if a.colidx==b.colidx & a.rowidx<b.rowidx return true;
+    else return false;
+  }
+};
+
+
+
+
+
 
 //---------------------------------------------------------
 // Sparse vector class definition and routines
