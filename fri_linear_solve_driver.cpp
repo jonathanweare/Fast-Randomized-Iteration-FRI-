@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
-#include "fri_strat_col.h"
+#include "fri_3.h"
 
 using namespace std;
 
