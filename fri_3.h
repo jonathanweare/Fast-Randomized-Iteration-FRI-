@@ -241,8 +241,6 @@ public:
   inline spmat_iterator begin() {return entries_.begin();}
   inline spmat_iterator end() {return entries_.begin() + curr_size_;}
 
-  inline SparseMatrixEntry<IdxType, ValType>& crs(const size_t idx);
-
 private:
   // Do not allow manual resizing and pushing/popping of the entries 
   // or CCS and CRS ordering vectors.
@@ -371,8 +369,8 @@ struct spmatcomparebyval {
 struct spmatcomparebyrowidxfirst {
   template <typename IdxType, typename ValType>
   inline bool operator () (const SparseMatrixEntry<IdxType, ValType> &a, const SparseMatrixEntry<IdxType, ValType> &b) {
-    if a.rowidx<b.rowidx return true;
-    else if a.rowidx==b.rowidx & a.colidx<b.colidx return true;
+    if (a.rowidx<b.rowidx) return true;
+    else if (a.rowidx==b.rowidx & a.colidx<b.colidx) return true;
     else return false;
   }
 };
@@ -382,8 +380,8 @@ struct spmatcomparebyrowidxfirst {
 struct spmatcomparebycolidxfirst {
   template <typename IdxType, typename ValType>
   inline bool operator () (const SparseMatrixEntry<IdxType, ValType> &a, const SparseMatrixEntry<IdxType, ValType> &b) {
-    if a.colidx<b.colidx return true;
-    else if a.colidx==b.colidx & a.rowidx<b.rowidx return true;
+    if (a.colidx<b.colidx) return true;
+    else if (a.colidx==b.colidx & a.rowidx<b.rowidx) return true;
     else return false;
   }
 };
@@ -656,8 +654,8 @@ inline int sparse_gemv(ValType alpha,
   // with the same indices.
 
   // Sort the list of additions according to their indices
-  std::make_heap(y.begin(), y.begin() + y.curr_size_, spcomparebyidx());
-  std::sort_heap(y.begin(), y.begin() + y.curr_size_, spcomparebyidx());
+  std::make_heap(y.begin(), y.begin() + y.curr_size_, spveccomparebyidx());
+  std::sort_heap(y.begin(), y.begin() + y.curr_size_, spveccomparebyidx());
 
   // Sum additions corresponding to like indices,
   // collapsing the list so the indices are unique
@@ -717,28 +715,32 @@ inline bool SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<Id
 // On output is_crs_ordered will be set to true and that
 // value will be returned.
 template <typename IdxType, typename ValType>
-inline bool SparseMatrix<IdxType, ValType>::set_crs_order(){
+inline bool SparseMatrix<IdxType, ValType>::set_crs(){
 
-  if is_crs_ordered_==true return true;
+  if (is_crs_ordered_==true) return true;
 
   std::iota(begin(crs_order_), begin(crs_order_)+curr_size_, static_cast<size_t>(0));
   std::sort(begin(crs_order_), begin(crs_order_)+curr_size_,
-        [&](size_t a, size_t b) { return spmatcomparebyrowidxfirst(entries_[a],entries_[b]); }
-  return is_crs_ordered_=true;
+        [&](size_t a, size_t b) { return spmatcomparebyrowidxfirst(entries_[a],entries_[b]); });
+
+  is_crs_ordered_=true;
+  return is_crs_ordered_;
 }
 
 // Find the indexing that reorders the columns into CCS order.
 // On output is_ccs_ordered will be set to true and that
 // value will be returned.
 template <typename IdxType, typename ValType>
-inline bool SparseMatrix<IdxType, ValType>::set_ccs_order(){
+inline bool SparseMatrix<IdxType, ValType>::set_ccs(){
   
-  if is_ccs_ordered_==true return true;
+  if (is_ccs_ordered_==true) return true;
 
   std::iota(begin(ccs_order_), begin(ccs_order_)+curr_size_, static_cast<size_t>(0));
   std::sort(begin(ccs_order_), begin(ccs_order_)+curr_size_,
-        [&](size_t a, size_t b) { return spmatcomparebycolidxfirst(entries_[a],entries_[b]); }
-  return is_ccs_ordered_=true;
+        [&](size_t a, size_t b) { return spmatcomparebycolidxfirst(entries_[a],entries_[b]); });
+
+  is_ccs_ordered_=true;
+  return is_ccs_ordered_;
 }
 
 // Quary the entries in CRS order.  The CRS order
@@ -818,7 +820,7 @@ inline int spcolwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const
     for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
       B[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
       B[n_entry_adds].rowidx = single_row_by_column_adds[ii].idx;
-      B[n_entry_adds].colidx = x[jj].idx
+      B[n_entry_adds].colidx = x[jj].idx;
       n_entry_adds++;
     }
   }
@@ -826,7 +828,7 @@ inline int spcolwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const
 
   std::iota(begin(B.ccs_order_), begin(B.ccs_order_)+n_entry_adds, static_cast<size_t>(0));
 
-  is_ccs_ordered_ = true;
+  B.is_ccs_ordered_ = true;
 
   return 0;
 }
@@ -926,7 +928,7 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
       sum_unprocessed -= dmax;
       std::make_heap(xabs_.begin(),
                      xabs_.begin() + xabs_.curr_size_ - nnz_large, 
-                     spcomparebyval());
+                     spveccomparebyval());
     
       while (( (target_nnz - nnz_large) * xabs_[0].val > sum_unprocessed) 
                && (nnz_large < target_nnz)) {
@@ -934,7 +936,7 @@ inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
         assert(sum_unprocessed >0);
         std::pop_heap(xabs_.begin(),
                      xabs_.begin() + xabs_.curr_size_ - nnz_large, 
-                     spcomparebyval());
+                     spveccomparebyval());
         nnz_large++;
       }
     }
