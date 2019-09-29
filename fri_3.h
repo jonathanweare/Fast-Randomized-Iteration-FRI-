@@ -211,9 +211,12 @@ public:
   // Must not change.
   const size_t max_size_;
 
-  // Constructor taking max_size as an argument and 
+  // Number of rows and columns.
+  size_t n_rows_, n_cols_;
+
+  // Constructor taking max_rows, max_cols, and max_size as an argument and 
   // allocating space for that many SparseMatrixEntry structs.
-  SparseMatrix(size_t max_size);
+  SparseMatrix(size_t max_rows, size_t max_cols, size_t max_size);
 
   // Assignment by value up to current size, leaving
   // max size & other entries unchanged.
@@ -245,8 +248,15 @@ private:
   // Do not allow manual resizing and pushing/popping of the entries 
   // or CCS and CRS ordering vectors.
   std::vector<SparseMatrixEntry<IdxType, ValType>> entries_;
-  std::vector<size_t> ccs_order_;
-  std::vector<size_t> crs_order_;
+  std::vector<SparseMatrixEntry<IdxType, ValType>*> ccs_order_;
+  std::vector<SparseMatrixEntry<IdxType, ValType>*> crs_order_;
+  std::vector<size_t> row_ends_;
+  std::vector<size_t> col_ends_;
+
+  // std::vector<size_t> ccs_order_;
+  // std::vector<size_t> crs_order_;
+  // std::vector<size_t> rows_;
+  // std::vector<size_t> cols_;
   bool is_crs_ordered_;
   bool is_ccs_ordered_;
 };
@@ -689,14 +699,16 @@ inline int sparse_gemv(ValType alpha,
 // Implementation
 //---------------------------------------------------------
 
-// Constructor taking max_size as an argument and 
+// Constructor taking max_rows, max_cols, and max_size as an argument and 
 // allocating space for that many SparseMatrixEntry structs.
 template <typename IdxType, typename ValType>
-inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_size) : max_size_(max_size) {
+inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_cols, size_t max_size) : max_size_(max_size) {
   curr_size_ = 0;
-  crs_order_ = std::vector<size_t>(max_size);
-  ccs_order_ = std::vector<size_t>(max_size);
   entries_ = std::vector<SparseMatrixEntry<IdxType, ValType>>(max_size);
+  crs_order_ = std::vector<SparseMatrixEntry<IdxType, ValType>*>(max_size);
+  ccs_order_ = std::vector<SparseMatrixEntry<IdxType, ValType>*>(max_size);
+  row_ends_ = std::vector<size_t>(max_rows);
+  col_ends_ = std::vector<size_t>(max_cols);
   is_crs_ordered_ = false;
   is_ccs_ordered_ = false;
 }
@@ -719,9 +731,25 @@ inline bool SparseMatrix<IdxType, ValType>::set_crs(){
 
   if (is_crs_ordered_==true) return true;
 
-  std::iota(begin(crs_order_), begin(crs_order_)+curr_size_, static_cast<size_t>(0));
-  std::sort(begin(crs_order_), begin(crs_order_)+curr_size_,
-        [&](size_t a, size_t b) { return spmatcomparebyrowidxfirst(entries_[a],entries_[b]); });
+  size_t jj;
+  for (jj=0; jj<curr_size_; jj++){
+    crs_order_[jj] = &entries_[jj];
+  }
+
+  std::sort(crs_order.begin(), crs_order.end(), 
+    [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebyrowidxfirst(*a,*b); });
+
+  // std::iota(begin(crs_order_), begin(crs_order_)+curr_size_, static_cast<size_t>(0));
+  // std::sort(begin(crs_order_), begin(crs_order_)+curr_size_,
+  //       [&](size_t a, size_t b) { return spmatcomparebyrowidxfirst(entries_[a],entries_[b]); });
+
+  size_t row_count = 1;
+  for (jj=1; jj<curr_size_;jj++){
+    if ( *(crs_order_[jj]).rowidx > *(crs_order_[jj-1]).rowidx )
+      row_ends_[row_count-1] = jj;
+      row_count++; 
+  }
+  n_rows_ = row_count;
 
   is_crs_ordered_=true;
   return is_crs_ordered_;
@@ -732,16 +760,84 @@ inline bool SparseMatrix<IdxType, ValType>::set_crs(){
 // value will be returned.
 template <typename IdxType, typename ValType>
 inline bool SparseMatrix<IdxType, ValType>::set_ccs(){
-  
-  if (is_ccs_ordered_==true) return true;
 
-  std::iota(begin(ccs_order_), begin(ccs_order_)+curr_size_, static_cast<size_t>(0));
-  std::sort(begin(ccs_order_), begin(ccs_order_)+curr_size_,
-        [&](size_t a, size_t b) { return spmatcomparebycolidxfirst(entries_[a],entries_[b]); });
+  if (is_crs_ordered_==true) return true;
+
+  size_t jj;
+  for (jj=0; jj<curr_size_; jj++){
+    ccs_order_[jj] = &entries_[jj];
+  }
+
+  std::sort(ccs_order.begin(), ccs_order.end(), 
+    [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
+
+  size_t col_count = 1;
+  for (jj=1; jj<curr_size_;jj++){
+    if ( *(ccs_order_[jj]).colidx > *(ccs_order_[jj-1]).colidx )
+      col_ends_[col_count-1] = jj;
+      col_count++; 
+  }
+  n_cols_ = col_count;
 
   is_ccs_ordered_=true;
   return is_ccs_ordered_;
 }
+
+// Copy entries of column idx of a sparse matrix
+// into a sparse vector.
+template <typename IdxType, typename ValType>
+inline int SparseMatrix<IdxType, ValType>::copy_col(const size_t idx, SparseVector<IdxType, ValType>& y){
+  assert(is_ccs_ordered_);
+  assert(idx<n_cols_);
+
+  size_t col_start;
+  if (idx==0)
+    col_start = 0;
+  if (idx>0)
+    col_start = col_ends_[idx-1];
+
+  assert( y.max_size_ >= col_ends_[idx] - col_start );
+  y.curr_size_ = col_ends_[idx] - col_start;
+
+  SparseMatrixEntry<IdxType,ValType> a;
+
+  for (size_t jj=col_start; jj<col_ends_[idx]; j++){
+    a = *ccs_order_[jj];
+    y.entries_[jj].idx = a.rowidx;
+    y.entries_[jj].val = a.val;
+  }
+
+  return 0;
+}
+
+// Copy entries of row idx of a sparse matrix
+// into a sparse vector.
+template <typename IdxType, typename ValType>
+inline int SparseMatrix<IdxType, ValType>::copy_row(const size_t idx, SparseVector<IdxType, ValType>& y){
+  assert(is_crs_ordered_);
+  assert(idx<n_rows_);
+
+  size_t row_start;
+  if (idx==0)
+    row_start = 0;
+  if (idx>0)
+    row_start = row_ends_[idx-1];
+
+  assert( y.max_size_ >= row_ends_[idx] - row_start );
+  y.curr_size_ = row_ends_[idx] - row_start;
+
+  SparseMatrixEntry<IdxType,ValType> a;
+
+  for (size_t jj=row_start; jj<row_ends_[idx]; j++){
+    a = *crs_order_[jj];
+    y.entries_[jj].idx = a.colidx;
+    y.entries_[jj].val = a.val;
+  }
+
+  return 0;
+}
+
+
 
 // Quary the entries in CRS order.  The CRS order
 // must have already been set by a 
@@ -749,7 +845,7 @@ inline bool SparseMatrix<IdxType, ValType>::set_ccs(){
 template <typename IdxType, typename ValType>
 inline const SparseMatrixEntry<IdxType, ValType>& SparseMatrix<IdxType,ValType>::crs(const size_t idx) {
   assert(is_crs_ordered_);
-  return entries_[crs_order_[idx]];
+  return *crs_order_[idx];
 }
 
 // Quary the entries in CCS order.  The CCS order
@@ -758,7 +854,7 @@ inline const SparseMatrixEntry<IdxType, ValType>& SparseMatrix<IdxType,ValType>:
 template <typename IdxType, typename ValType>
 inline const SparseMatrixEntry<IdxType, ValType>& SparseMatrix<IdxType,ValType>::ccs(const size_t idx) {
   assert(is_ccs_ordered_);
-  return entries_[ccs_order_[idx]];
+  return *ccs_order_[idx];
 }
 
   // Assignment by value up to current size, leaving
@@ -772,8 +868,15 @@ inline SparseMatrix<IdxType, ValType>& SparseMatrix<IdxType, ValType>::operator=
     crs_order_[i] = other.crs_order_[i];
     ccs_order_[i] = other.ccs_order_[i];
   }
-  is_crs_ordered_ = false;
-  is_ccs_ordered_ = false;
+  for (size_t jj = 0; jj<other.n_rows_; jj++){
+    row_ends_[jj] = other.row_ends_[jj];
+  }
+  for (size_t jj = 0; jj<other.n_cols_; jj++){
+    col_ends_[jj] = other.col_ends_[jj];
+  }
+
+  is_crs_ordered_ = other.is_crs_ordered_;
+  is_ccs_ordered_ = other.is_ccs_ordered_;
 
   return *this;
 }
