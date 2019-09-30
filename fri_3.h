@@ -255,10 +255,10 @@ private:
   // Do not allow manual resizing and pushing/popping of the entries 
   // or CCS and CRS ordering vectors.
   std::vector<SparseMatrixEntry<IdxType, ValType>> entries_;
-  std::vector<SparseMatrixEntry<IdxType, ValType>*> ccs_order_;
-  std::vector<SparseMatrixEntry<IdxType, ValType>*> crs_order_;
-  std::vector<size_t> row_st_;
-  std::vector<size_t> col_st_;
+  std::vector<size_t> ccs_order_;
+  std::vector<size_t> crs_order_;
+  std::vector<size_t> row_heads_;
+  std::vector<size_t> col_heads_;
 
   // std::vector<size_t> ccs_order_;
   // std::vector<size_t> crs_order_;
@@ -715,12 +715,12 @@ inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_
   n_rows_ = 0;
   n_cols_ = 0;
   entries_ = std::vector<SparseMatrixEntry<IdxType, ValType>>(max_size);
-  crs_order_ = std::vector<SparseMatrixEntry<IdxType, ValType>*>(max_size);
-  ccs_order_ = std::vector<SparseMatrixEntry<IdxType, ValType>*>(max_size);
-  row_st_ = std::vector<size_t>(max_rows);
-  col_st_ = std::vector<size_t>(max_cols);
-  is_crs_sorted_ = false;
-  is_ccs_sorted_ = false;
+  crs_order_ = std::vector<size_t>(max_size);
+  ccs_order_ = std::vector<size_t>(max_size);
+  row_heads_ = std::vector<size_t>(max_rows);
+  col_heads_ = std::vector<size_t>(max_cols);
+  is_crs_sorted_ = true;
+  is_ccs_sorted_ = true;
 }
 
 // Add a single SparseMatrixEntry to a sparse matrix.
@@ -774,7 +774,7 @@ inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_
 // the same row and column indices, its value is updated.
 // This leaves the entries both CCS and CRS sorted.
 template <typename IdxType, typename ValType>
-inline bool SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<IdxType, ValType>& other){
+inline void SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<IdxType, ValType>& other){
 
   assert( curr_size_ < max_size_ );
 
@@ -784,98 +784,117 @@ inline bool SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<Id
   if (!is_ccs_sorted_)
     sort_ccs();
 
+  // Was the sparse matrix empty?
+  if (curr_size_ == 0){
+    assert( n_cols_ < max_cols_);
+    assert( n_rows_ < max_rows_);
+
+    ccs_order_[0] = 0;
+    crs_order_[0] = 0;
+
+    col_heads_[0] = 0;
+    row_heads_[0] = 0;
+
+    entries_[0] = other;
+
+    curr_size_++;
+    n_cols_++;
+    n_rows_++;
+
+    return;
+  }
+
+  // Decide if it's a new entry and fix column ordering.
+
   bool is_new_entry;
 
-  if ( *ccs_order_[curr_size_-1].colidx < other.colidx ){
+  if ( entries_[ccs_order_[curr_size_-1]].colidx < other.colidx ){  // is this a new column with greater index than the rest?
     assert( n_cols_ < max_cols_);
 
     is_new_entry = true;
 
-    ccs_order_[curr_size_] = &entries_[curr_size_];
+    ccs_order_[curr_size_] = curr_size_;
 
-    col_st_[n_cols_] = curr_size_;
+    col_heads_[n_cols_] = curr_size_;
 
-    n_cols_++
-  }
-  else if ( other.colidx < *ccs_order_[0].colidx ){
-    assert( n_cols_ < max_cols_);
-    is_new_entry = true;
-
-    std::move_backwards(ccs_order_.begin(),ccs_order_.begin()+curr_size,ccs_order_.begin()+curr_size+1);
-    ccs_order_[0] = &entries_[curr_size_];
-
-    for( size_t jj=0; jj<n_cols_; jj++){
-      col_st_[jj+1] = col_st_[jj]+1;
-    }
     n_cols_++;
   }
-  else{
-    std::vector<size_t>::iterator col_num;
+  else{                                                            // entry doesn't have greater column index than the rest.
+    std::vector<size_t>::iterator col_num, ccs_pos, it;
 
-    col_num = std::lower_bound(col_st_.begin(), col_st_.end(), other.colidx,
-      [&](size_t ii, size_t jj) { return *ccs_order_[ii].colidx<*ccs_order_[jj].colidx; });
+    col_num = std::lower_bound(col_heads_.begin(), col_heads_.begin()+n_cols_, other.colidx,
+      [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii]].colidx < entries_[ccs_order_[jj]].colidx; });
 
-  }
+    if( entries_[ccs_order_[*col_num]].colidx > other.colidx ){  // is this a new column?
+      assert( n_cols_ < max_cols_);
+      is_new_entry = true;
 
-  
-  else{
+      ccs_pos = ccs_order_.begin() + *col_num;
 
-    std::vector<size_t>::iterator col_num;
+      std::move_backwards(col_pos, ccs_order_.begin() + curr_size_, ccs_order_.begin()+curr_size_+1);
+      *ccs_pos = curr_size_;
 
-    col_num = std::lower_bound(col_st_.begin(), col_st_.end(), other.colidx,
-      [&](size_t ii, size_t jj) { return *ccs_order_[ii].colidx<*ccs_order_[jj].colidx; });
-
-    if ( *ccs_order_[*col_num].colidx < other.colidx ){
-      entries_[curr_size_] = other;
-      std::move_backwards( &ccs_order_[*col_num+1], ccs_order_.begin()+curr_size_+1)
-      curr_size_++;
+      it = col_heads_.begin()+n_cols_;
+      while ( it != col_num){
+        *it = *(it-1) + 1;
+        it--;
+      }
+      n_cols_++;
     }
-    else{
+    else{                                                            // this isn't a new column.
+      assert( entries_[ccs_order_[*col_num]].colidx == other.colidx );
 
-      assert(*ccs_order_[*col_num].colidx == other.colidx);
+      size_t col_end;
 
-      std::vector<SparseMatrixEntry<IdxType, ValType>*> col_pos;
+      if (col_num == col_heads_.begin()+n_cols_-1)
+        col_end = curr_size_;
+      else
+        col_end = *(col_num+1);
 
-      col_pos = std::lower_bound(&ccs_order_[*col_num], &ccs_order_[*col_num+1], &other,
-        [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
+      if ( entries_[ccs_order_[col_end-1]].rowidx < other.rowidx ){   // does this entry go at the end of a column
+        is_new_entry = true;
 
-      if (**ccs_pos.rowidx==other.rowidx)
-        **ccs_pos.val = other.val;
-      else{
-        entries_[curr_size_] = other;
+        ccs_pos = ccs_order_.begin()+col_end;
 
+        if (col_end < curr_size_){
+          std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+1);
+          for ( it = col_num+1; it != col_heads_.begin()+n_cols_; it++)
+            (*it)++;
+        }
+        
+        *ccs_pos = curr_size_;
+      }
+      else{                                                             // this doesn't go at the end of a column
+        ccs_pos = std::lower_bound(ccs_order_.begin()+*col_num, ccs_order_.begin()+col_end, other.rowidx,
+          [&](size_t ii, size_t jj) { return entries_[ii].rowidx < entries_[jj].rowidx; });
 
+        if( entries_[*ccs_pos].rowidx == other.rowidx ){                  // does it replace an existing entry?
+          is_new_entry=false;
+          entries_[*ccs_pos].val = other.val
+        }
+        else{                                                               // it doesn't replace existing entry.
+          is_new_entry=true;
+          std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+1);
+          *ccs_pos = curr_size_;
+          
+
+          for ( it = col_num+1; it != col_heads_.begin()+n_cols_; it++)
+            (*it)++;
+        }
       }
     }
-
-    
-
-
-    ccs_pos = std::lower_bound(*col_pos, *(col_pos+1), &other,
-      [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
-
-    if (**ccs_pos.rowidx==other.rowidx and **ccs_pos.colidx==other.colidx)
-      **ccs_pos.val = other.val;
-    else{
-      entries_[curr_size_] = other;
-    
-      std::move_backwards(ccs_pos,ccs_order_.begin()+curr_size,ccs_order_.begin()+curr_size+1);
-      *ccs_pos = &entries_[curr_size_];
-
-      crs_pos = std::lower_bound(crs_order_.begin(), crs_order_.begin()+curr_size_, &a,
-        [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebyrowidxfirst(*a,*b); });
-      std::move_backwards(crs_pos,crs_order_.begin()+curr_size,crs_order_.begin()+curr_size+1);
-      *crs_pos = &entries_[curr_size_];
-
-      // relpace with search over row first or col first.  don't forget to fix row_ends_ and col_ends
-      curr_size_++;
-    }
   }
 
-  is_crs_sorted_ = true;
-  is_ccs_sorted_ = true;
 
-  return true;
+  // Fix row ordering.
+
+
+  if(is_new_entry){
+    entries_[curr_size_] = other;
+    curr_size_++;
+  }
+
+  return;
 }
 
 
@@ -884,44 +903,31 @@ inline bool SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<Id
 // If the matrix already has that column it is replaced.
 // This leaves the matrix CCS ordered, but destroys CRS ordering.
 template <typename IdxType, typename ValType>
-inline bool SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const SparseVector<IdxType, ValType>& other){
+inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const SparseVector<IdxType, ValType>& other){
 
   assert( curr_size_ + other.curr_size_ <= max_size_ );
 
-  if (!is_ccs_sorted_){
-    size_t jj;
-    for (jj=0; jj<curr_size_; jj++)
-      ccs_order_[jj] = &entries_[jj];
+  if (!is_ccs_sorted_)
+    sort_crs();
 
-    std::sort(ccs_order_.begin(), ccs_order_.begin()+curr_size_, 
-      [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
-  }
-  
-  std::vector<SparseMatrixEntry<IdxType,ValType>*>::iterator crs_pos, ccs_pos;
-
-  ccs_pos = std::lower_bound(ccs_order_.begin(), ccs_order_.begin()+curr_size_, &a,
-    [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
-
-  if (**ccs_pos.rowidx==other.rowidx and **ccs_pos.colidx==other.colidx)
-    **ccs_pos.val = other.val;
-  else{
-    entries_[curr_size_] = other;
+  if (curr_size_==0){
+    std::iota(ccs_order_.begin(),ccs_order_.begin()+y.curr_size_,0);
     
-    std::move_backwards(ccs_pos,ccs_order_.begin()+curr_size,ccs_order_.begin()+curr_size+1);
-    *ccs_pos = &entries_[curr_size_];
+    col_heads_[0] = 0;
+    row_heads_[0] = 0;
 
-    crs_pos = std::lower_bound(crs_order_.begin(), crs_order_.begin()+curr_size_, &a,
-      [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebyrowidxfirst(*a,*b); });
-    std::move_backwards(crs_pos,crs_order_.begin()+curr_size,crs_order_.begin()+curr_size+1);
-    *crs_pos = &entries_[curr_size_];
+    n_cols_ = 1;
+    n_rows_ = y_curr_size_;
 
-    curr_size_++;
+    for(jj=0;jj<y.curr_size_;jj++){
+      entries_[jj].colidx = idx;
+    }
+
   }
 
-  is_crs_sorted_ = true;
-  is_ccs_sorted_ = true;
+  is_crs_sorted_ = false;
 
-  return true;
+  return;
 }
 
 
