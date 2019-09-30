@@ -214,6 +214,9 @@ public:
   // Number of rows and columns.
   size_t n_rows_, n_cols_;
 
+  // Max number of rows and columns.
+  const size_t max_rows_, max_cols_;
+
   // Constructor taking max_rows, max_cols, and max_size as an argument and 
   // allocating space for that many SparseMatrixEntry structs.
   SparseMatrix(size_t max_rows, size_t max_cols, size_t max_size);
@@ -706,15 +709,16 @@ inline int sparse_gemv(ValType alpha,
 // Constructor taking max_rows, max_cols, and max_size as an argument and 
 // allocating space for that many SparseMatrixEntry structs.
 template <typename IdxType, typename ValType>
-inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_cols, size_t max_size) : max_size_(max_size) {
+inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_cols, size_t max_size)
+  : max_size_(max_size), max_rows_(max_rows), max_cols_(max_cols) {
   curr_size_ = 0;
   n_rows_ = 0;
   n_cols_ = 0;
   entries_ = std::vector<SparseMatrixEntry<IdxType, ValType>>(max_size);
   crs_order_ = std::vector<SparseMatrixEntry<IdxType, ValType>*>(max_size);
   ccs_order_ = std::vector<SparseMatrixEntry<IdxType, ValType>*>(max_size);
-  row_st_ = std::vector<SparseMatrixEntry<IdxType, ValType>**>(max_rows);
-  col_st_ = std::vector<SparseMatrixEntry<IdxType, ValType>**>(max_cols);
+  row_st_ = std::vector<size_t>(max_rows);
+  col_st_ = std::vector<size_t>(max_cols);
   is_crs_sorted_ = false;
   is_ccs_sorted_ = false;
 }
@@ -780,20 +784,40 @@ inline bool SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<Id
   if (!is_ccs_sorted_)
     sort_ccs();
 
-  if ( spmatcomparebycolidxfirst(other,*ccs_order_[0]) ){
-    entries_[curr_size_] = other;
+  bool is_new_entry;
 
-    std::move_backwards(ccs_order_.begin(),ccs_order_.begin()+curr_size,ccs_order_.begin()+curr_size+1);
-      
-    curr_size_++;
-  }
-  else if ( spmatcomparebycolidxfirst(*ccs_order_[curr_size_],other) ){
-    entries_[curr_size_] = other;
+  if ( *ccs_order_[curr_size_-1].colidx < other.colidx ){
+    assert( n_cols_ < max_cols_);
+
+    is_new_entry = true;
 
     ccs_order_[curr_size_] = &entries_[curr_size_];
 
+    col_st_[n_cols_] = curr_size_;
+
+    n_cols_++
+  }
+  else if ( other.colidx < *ccs_order_[0].colidx ){
+    assert( n_cols_ < max_cols_);
+    is_new_entry = true;
+
+    std::move_backwards(ccs_order_.begin(),ccs_order_.begin()+curr_size,ccs_order_.begin()+curr_size+1);
+    ccs_order_[0] = &entries_[curr_size_];
+
+    for( size_t jj=0; jj<n_cols_; jj++){
+      col_st_[jj+1] = col_st_[jj]+1;
+    }
+    n_cols_++;
+  }
+  else{
+    std::vector<size_t>::iterator col_num;
+
+    col_num = std::lower_bound(col_st_.begin(), col_st_.end(), other.colidx,
+      [&](size_t ii, size_t jj) { return *ccs_order_[ii].colidx<*ccs_order_[jj].colidx; });
 
   }
+
+  
   else{
 
     std::vector<size_t>::iterator col_num;
