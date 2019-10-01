@@ -226,27 +226,55 @@ public:
   inline SparseMatrix<IdxType, ValType>& operator=(const SparseMatrix<IdxType, ValType> &other);
 
   // Index reordering to Compressed Row Storage (CRS)
-  inline bool sort_crs();
-  inline bool heap_crs();
+  inline void sort_crs();
+  inline void heap_crs();
   inline const bool check_crs_sorted() const {return is_crs_sorted_;}
   inline const bool check_crs_heaped() const {return is_crs_heaped_;}
-  inline const SparseMatrixEntry<IdxType, ValType>& crs(const size_t idx);
+  inline const SparseMatrixEntry<IdxType, ValType>& crs_get(const size_t idx);
 
   // Index reordering to Compressed Column Storage (CCS)
-  inline bool sort_ccs();
-  inline bool heap_ccs();
+  inline void sort_ccs();
+  inline void heap_ccs();
   inline const bool check_ccs_sorted() const {return is_ccs_sorted_;}
   inline const bool check_ccs_heaped() const {return is_ccs_heaped_;}
-  inline const SparseMatrixEntry<IdxType, ValType>& ccs(const size_t idx);
+  inline const SparseMatrixEntry<IdxType, ValType>& ccs_get(const size_t idx);
 
+  // Reset matrix without deallocating space.
+  inline void clear();
+
+  // Write column idx into a sparse vector.
+  inline void get_col(const size_t idx, SparseVector<IdxType,ValType>& other);
+
+  // Write row idx into a sparse vector.
+  inline void get_row(const size_t idx, SparseVector<IdxType,ValType>& other);
+
+  // Add a new column to the matrix.  If there's already a column with index idx
+  // it is replaced.
+  inline void set_col(const SparseVector<IdxType,ValType>& other, const IdxType idx);
+
+  // Add a new row to the matrix.  If there's already a row with index idx
+  // it is replaced.
+  inline void set_row(const SparseVector<IdxType,ValType>& other, const IdxType idx);
+
+  // Compute column sums and output in sparse vector.
+  inline void column_sums(SparseVector<IdxType,ValType>& other);
+
+  // Compute column norms and output in sparse vector.
+  inline void column_norms(SparseVector<IdxType,ValType>& other, size_t p);
+
+  // Compute row sums and output in sparse vector.
+  inline void row_sums(SparseVector<IdxType,ValType>& other);
+
+  // Compute row norms and output in sparse vector.
+  inline void row_norms(SparseVector<IdxType,ValType>& other, size_t p);
 
   // Accessors for the underlying vector so one can do
   // some of the normal vector manipulation, but not all.
   // Specifically, subscripting and iterator begin and end
   // are provided. Incremental queue and stack function is 
   // intentionally not provided.
-  inline bool set_entry(const SparseMatrixEntry<IdxType, ValType>& a, const size_t idx);
-  inline const SparseVectorEntry<IdxType, ValType>& get_entry(const size_t idx) const {return entries_[idx];}
+  inline void set_entry(const SparseMatrixEntry<IdxType, ValType>& a, const size_t idx);
+  inline const SparseMatrixEntry<IdxType, ValType>& get_entry(const size_t idx) const {return entries_[idx];}
   typedef typename std::vector<SparseMatrixEntry<IdxType, ValType>>::iterator spmat_iterator;
   inline spmat_iterator begin() {return entries_.begin();}
   inline spmat_iterator end() {return entries_.begin() + curr_size_;}
@@ -274,7 +302,7 @@ private:
 // of nonzero entries and then printing each entry
 // as a val idx pair. 
 template <typename IdxType, typename ValType>
-inline void print_vector(SparseMatrix<IdxType, ValType> &mat);
+inline void print_matrix(SparseMatrix<IdxType, ValType> &mat);
 
 
 // spcolwisemv multiplies each column of 
@@ -723,6 +751,19 @@ inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_
   is_ccs_sorted_ = true;
 }
 
+
+// Reset sparse matrix without deallocating space.
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::clear(){
+  curr_size_ = 0;
+  n_rows_ = 0;
+  n_cols_ = 0;
+  is_crs_sorted_ = true;
+  is_ccs_sorted_ = true;
+}
+
+
+
 // Add a single SparseMatrixEntry to a sparse matrix.
 // This destroys CCS or CRS sorting but preserves heaped ordering.
 // template <typename IdxType, typename ValType>
@@ -905,24 +946,91 @@ inline void SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<Id
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const SparseVector<IdxType, ValType>& other){
 
-  assert( curr_size_ + other.curr_size_ <= max_size_ );
+  assert( curr_size_+other.curr_size_<=max_size_);
+  assert( n_cols_<max_cols_);
+  assert( n_rows_+other.curr_size_<=max_rows_);
 
   if (!is_ccs_sorted_)
     sort_crs();
 
   if (curr_size_==0){
-    std::iota(ccs_order_.begin(),ccs_order_.begin()+y.curr_size_,0);
+
+    std::iota(ccs_order_.begin(),ccs_order_.begin()+other.curr_size_,0);
+    std::iota(crs_order_.begin(),crs_order_.begin()+other.curr_size_,0);
+    std::iota(row_heads_.begin(),row_heads_.begin()+other.curr_size_,0);
     
     col_heads_[0] = 0;
-    row_heads_[0] = 0;
 
     n_cols_ = 1;
-    n_rows_ = y_curr_size_;
+    n_rows_ = other.curr_size_;
 
-    for(jj=0;jj<y.curr_size_;jj++){
+    for(jj=0;jj<other.curr_size_;jj++){
       entries_[jj].colidx = idx;
+      entries_[jj].rowidx = other.idx;
+      entries_[jj].val = other.val;
+    }
+  
+    curr_size_ = other.curr_size_;
+
+    return;
+  }
+
+
+  std::vector<size_t>::iterator ccs_pos, col_id, it;
+  size_t col_end, shift;
+  bool is_new_col;
+
+  if ( idx > entries_[ccs_order_[curr_size_-1]] ){
+
+    is_new_col = true;
+
+    ccs_pos = ccs_order_.begin()+curr_size_;
+
+    std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
+
+    col_heads_[n_cols_] = curr_size_;
+  }
+  else{
+    col_id = std::lower_bound(col_heads_.begin(), col_heads_.begin()+n_cols_, idx,
+      [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii]].colidx < entries_[ccs_order_[jj]].colidx; });
+
+    if (col_id == col_heads_.begin()+n_cols_-1)
+      col_end = curr_size_;
+    else
+      col_end = *(col_id+1);
+
+    ccs_pos = ccs_order_.begin() + *col_id;
+
+    if (entries_[ccs_order_[*col_id]].colidx > idx)
+      shift = other.curr_size_;
+    else{
+      is_new_col = true;
+      shift = other.curr_size_ - (col_end-*col_id);
     }
 
+    if(shift>0)
+      std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+shift);
+    else{
+      for(size_t jj=0; jj<-shift; jj++){
+        entries_[*(ccs_pos+jj)].rowidx = other.idx;
+        entries_[*(ccs_pos+jj)].val = other.val;
+      }
+      std::rotate(ccs_pos,ccs_pos-shift,ccs_order_.begin()+curr_size_);
+    }
+    
+
+    std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
+  }
+
+  if(is_new_col){
+    for(jj=0;jj<other.curr_size_;jj++){
+      entries_[curr_size_+jj].colidx = idx;
+      entries_[curr_size_+jj].rowidx = other.idx;
+      entries_[curr_size_+jj].val = other.val;
+    }
+
+    curr_size_+=other.curr_size_;
+    n_cols_++;
   }
 
   is_crs_sorted_ = false;
