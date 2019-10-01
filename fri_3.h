@@ -977,7 +977,7 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
 
 
   std::vector<size_t>::iterator ccs_pos, col_id, it;
-  size_t old_len;
+  size_t col_end, old_len;
 
   if ( idx > entries_[ccs_order_[curr_size_-1]] ){
 
@@ -1022,10 +1022,15 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
       curr_size_ += other.curr_size_;
     }
     else{
+
+      assert( entries_[ccs_order_[*col_id]].colidx == idx );
+
       if (col_id == col_heads_.begin()+n_cols_-1)
-        old_len = curr_size_-*col_id;
+        col_end = curr_size_;
       else
-        old_len = *(col_id+1)-*col_id;
+        col_end = *(col_id+1);
+
+      old_len = col_end - *col_id;
 
       if(other.curr_size_>=old_len){
 
@@ -1040,9 +1045,14 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
           entries_[curr_size_-old_len+jj].val = other[jj].val;
         }
         
-        std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_-old_len);
-        std::iota(ccs_pos, ccs_pos+other.curr_size_-old_len,curr_size_-old_len);
+        if( col_id != col_heads_.begin()+n_cols_-1 ){
+          std::move_backwards(ccs_order_.begin()+*(col_id+1), ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_-old_len);
+          for ( it = col_id+1; it != col_heads_.begin()+n_cols_; it++)
+            (*it)+= ;
+        }
+        std::iota(ccs_pos+other.curr_size_-old_len, ccs_pos+other.curr_size_, curr_size_-old_len);
 
+        curr_size_ += other.curr_size_-old_len;
       }
       else{
         for(size_t jj=0; jj<-shift; jj++){
