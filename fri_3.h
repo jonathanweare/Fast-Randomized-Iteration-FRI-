@@ -966,8 +966,8 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
 
     for(jj=0;jj<other.curr_size_;jj++){
       entries_[jj].colidx = idx;
-      entries_[jj].rowidx = other.idx;
-      entries_[jj].val = other.val;
+      entries_[jj].rowidx = other[jj].idx;
+      entries_[jj].val = other[jj].val;
     }
   
     curr_size_ = other.curr_size_;
@@ -977,60 +977,84 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
 
 
   std::vector<size_t>::iterator ccs_pos, col_id, it;
-  size_t col_end, shift;
-  bool is_new_col;
+  size_t old_len;
 
   if ( idx > entries_[ccs_order_[curr_size_-1]] ){
-
-    is_new_col = true;
 
     ccs_pos = ccs_order_.begin()+curr_size_;
 
     std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
 
     col_heads_[n_cols_] = curr_size_;
+
+    for(jj=0;jj<other.curr_size_;jj++){
+      entries_[curr_size_+jj].colidx = idx;
+      entries_[curr_size_+jj].rowidx = other[jj].idx;
+      entries_[curr_size_+jj].val = other[jj].val;
+    }
+
+    curr_size_+=other.curr_size_;
+    n_cols_++;
   }
   else{
     col_id = std::lower_bound(col_heads_.begin(), col_heads_.begin()+n_cols_, idx,
       [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii]].colidx < entries_[ccs_order_[jj]].colidx; });
 
-    if (col_id == col_heads_.begin()+n_cols_-1)
-      col_end = curr_size_;
-    else
-      col_end = *(col_id+1);
-
     ccs_pos = ccs_order_.begin() + *col_id;
 
-    if (entries_[ccs_order_[*col_id]].colidx > idx)
-      shift = other.curr_size_;
-    else{
-      is_new_col = true;
-      shift = other.curr_size_ - (col_end-*col_id);
-    }
+    if (entries_[ccs_order_[*col_id]].colidx > idx){
 
-    if(shift>0)
-      std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+shift);
-    else{
-      for(size_t jj=0; jj<-shift; jj++){
-        entries_[*(ccs_pos+jj)].rowidx = other.idx;
-        entries_[*(ccs_pos+jj)].val = other.val;
+      std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_);
+      std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
+
+      it = col_heads_.begin()+n_cols_;
+      while ( it != col_id){
+        *it = *(it-1) + 1;
+        it--;
       }
-      std::rotate(ccs_pos,ccs_pos-shift,ccs_order_.begin()+curr_size_);
+      n_cols_++
+
+      for(jj=0;jj<other.curr_size_;jj++){
+        entries_[curr_size_+jj].colidx = idx;
+        entries_[curr_size_+jj].rowidx = other[jj].idx;
+        entries_[curr_size_+jj].val = other[jj].val;
+      }
+      curr_size_ += other.curr_size_;
+    }
+    else{
+      if (col_id == col_heads_.begin()+n_cols_-1)
+        old_len = curr_size_-*col_id;
+      else
+        old_len = *(col_id+1)-*col_id;
+
+      if(other.curr_size_>=old_len){
+
+        for(size_t jj=0; jj<old_len; jj++){
+          entries_[*(ccs_pos+jj)].colidx = idx;
+          entries_[*(ccs_pos+jj)].rowidx = other[jj].idx;
+          entries_[*(ccs_pos+jj)].val = other[jj].val;
+        }
+        for(size_t jj=old_len; jj<other.curr_size_;jj++){
+          entries_[curr_size_-old_len+jj].colidx = idx;
+          entries_[curr_size_-old_len+jj].rowidx = other[jj].idx;
+          entries_[curr_size_-old_len+jj].val = other[jj].val;
+        }
+        
+        std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_-old_len);
+        std::iota(ccs_pos, ccs_pos+other.curr_size_-old_len,curr_size_-old_len);
+
+      }
+      else{
+        for(size_t jj=0; jj<-shift; jj++){
+          entries_[*(ccs_pos+jj)].rowidx = other.idx;
+          entries_[*(ccs_pos+jj)].val = other.val;
+        }
+        std::rotate(ccs_pos,ccs_pos-shift,ccs_order_.begin()+curr_size_);
+      }
     }
     
 
     std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
-  }
-
-  if(is_new_col){
-    for(jj=0;jj<other.curr_size_;jj++){
-      entries_[curr_size_+jj].colidx = idx;
-      entries_[curr_size_+jj].rowidx = other.idx;
-      entries_[curr_size_+jj].val = other.val;
-    }
-
-    curr_size_+=other.curr_size_;
-    n_cols_++;
   }
 
   is_crs_sorted_ = false;
