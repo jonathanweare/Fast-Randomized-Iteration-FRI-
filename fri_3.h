@@ -953,7 +953,7 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
   if (!is_ccs_sorted_)
     sort_crs();
 
-  if (curr_size_==0){
+  if (curr_size_==0){                    // is the matrix empty?
 
     std::iota(ccs_order_.begin(),ccs_order_.begin()+other.curr_size_,0);
     std::iota(crs_order_.begin(),crs_order_.begin()+other.curr_size_,0);
@@ -961,25 +961,25 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
     
     col_heads_[0] = 0;
 
-    n_cols_ = 1;
-    n_rows_ = other.curr_size_;
-
-    for(jj=0;jj<other.curr_size_;jj++){
-      entries_[jj].colidx = idx;
-      entries_[jj].rowidx = other[jj].idx;
-      entries_[jj].val = other[jj].val;
+    for( jj=0; jj<other.curr_size_;jj++){            // copy the new column at the end of entries_
+      entries_[curr_size_+jj].colidx = idx;
+      entries_[curr_size_+jj].rowidx = other[jj].idx;
+      entries_[curr_size_+jj].val = other[jj].val;
     }
   
-    curr_size_ = other.curr_size_;
+    curr_size_ += other.curr_size_;
+    n_cols_++;
+    n_rows_ = other.curr_size_;
 
     return;
   }
 
+  is_crs_sorted_ = false;
 
   std::vector<size_t>::iterator ccs_pos, col_id, it;
   size_t col_end, old_len;
 
-  if ( idx > entries_[ccs_order_[curr_size_-1]] ){
+  if ( idx > entries_[ccs_order_[curr_size_-1]] ){                // will this be the largest column index
 
     ccs_pos = ccs_order_.begin()+curr_size_;
 
@@ -987,7 +987,7 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
 
     col_heads_[n_cols_] = curr_size_;
 
-    for(jj=0;jj<other.curr_size_;jj++){
+    for( jj=0; jj<other.curr_size_;jj++){            // copy the new column at the end of entries_
       entries_[curr_size_+jj].colidx = idx;
       entries_[curr_size_+jj].rowidx = other[jj].idx;
       entries_[curr_size_+jj].val = other[jj].val;
@@ -996,13 +996,13 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
     curr_size_+=other.curr_size_;
     n_cols_++;
   }
-  else{
+  else{                                                              // this won't be the largest column index
     col_id = std::lower_bound(col_heads_.begin(), col_heads_.begin()+n_cols_, idx,
       [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii]].colidx < entries_[ccs_order_[jj]].colidx; });
 
     ccs_pos = ccs_order_.begin() + *col_id;
 
-    if (entries_[ccs_order_[*col_id]].colidx > idx){
+    if (entries_[ccs_order_[*col_id]].colidx > idx){                 // is this a new column index?
 
       std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_);
       std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
@@ -1014,14 +1014,15 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
       }
       n_cols_++
 
-      for(jj=0;jj<other.curr_size_;jj++){
+      for( jj=0; jj<other.curr_size_;jj++){            // copy the new column at the end of entries_
         entries_[curr_size_+jj].colidx = idx;
         entries_[curr_size_+jj].rowidx = other[jj].idx;
         entries_[curr_size_+jj].val = other[jj].val;
       }
+
       curr_size_ += other.curr_size_;
     }
-    else{
+    else{                                                        // this replaces an existing column
 
       assert( entries_[ccs_order_[*col_id]].colidx == idx );
 
@@ -1032,42 +1033,44 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const IdxType idx, const Spa
 
       old_len = col_end - *col_id;
 
-      if(other.curr_size_>=old_len){
+      if(other.curr_size_>=old_len){                             // is the new column longer than the old one?
 
-        for(size_t jj=0; jj<old_len; jj++){
+        for( jj=0; jj<old_len;jj++){                             // copy new entries over old entries
           entries_[*(ccs_pos+jj)].colidx = idx;
           entries_[*(ccs_pos+jj)].rowidx = other[jj].idx;
           entries_[*(ccs_pos+jj)].val = other[jj].val;
         }
-        for(size_t jj=old_len; jj<other.curr_size_;jj++){
+        for( jj=old_len; jj<other.curr_size_;jj++){              // copy the rest of the new column at the end of entries_
           entries_[curr_size_-old_len+jj].colidx = idx;
           entries_[curr_size_-old_len+jj].rowidx = other[jj].idx;
           entries_[curr_size_-old_len+jj].val = other[jj].val;
         }
-        
-        if( col_id != col_heads_.begin()+n_cols_-1 ){
-          std::move_backwards(ccs_order_.begin()+*(col_id+1), ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_-old_len);
-          for ( it = col_id+1; it != col_heads_.begin()+n_cols_; it++)
-            (*it)+= ;
-        }
+
+        std::move_backwards(ccs_order_.begin()+col_end, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+other.curr_size_-old_len);
         std::iota(ccs_pos+other.curr_size_-old_len, ccs_pos+other.curr_size_, curr_size_-old_len);
 
-        curr_size_ += other.curr_size_-old_len;
       }
-      else{
-        for(size_t jj=0; jj<-shift; jj++){
-          entries_[*(ccs_pos+jj)].rowidx = other.idx;
-          entries_[*(ccs_pos+jj)].val = other.val;
+      else{                                                       // the new column is shorter than the old one.
+        
+        for( jj=0; jj<other.curr_size_;jj++){                             // copy new entries over old entries
+          entries_[*(ccs_pos+jj)].colidx = idx;
+          entries_[*(ccs_pos+jj)].rowidx = other[jj].idx;
+          entries_[*(ccs_pos+jj)].val = other[jj].val;
         }
-        std::rotate(ccs_pos,ccs_pos-shift,ccs_order_.begin()+curr_size_);
+        for( jj=0;jj<curr_size_-col_end;jj++ )                       // move iterators forward to cover unfilled old entries
+          std::iter_swap(entries_.begin()+*(ccs_pos+other.curr_size_+jj),entries_.begin()+*(ccs_pos+col_end+jj));
+        for( jj=0;jj<curr_size_-col_end;jj++ ) 
+          *(ccs_pos+other.curr_size_+jj) -= old_len-other.curr_size_;
+
       }
+
+      if( col_end < curr_size_ )                  // fix column head positions
+        for ( it = col_id+1; it != col_heads_.begin()+n_cols_; it++)
+          (*it) += other.curr_size_-old_len;
+
+      curr_size_ += other.curr_size_-old_len;
     }
-    
-
-    std::iota(ccs_pos, ccs_pos+other.curr_size_,curr_size_);
   }
-
-  is_crs_sorted_ = false;
 
   return;
 }
