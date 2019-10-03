@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
-#include "fri_3.h"
+#include "fri_4.h"
 
 using namespace std;
 
@@ -72,7 +72,7 @@ int main() {
   size_t Nit = 1000;      // number of iterations after burn in
   size_t Brn = 100;      // number of burn in iterations (these
                          // are not included in trajectory averages)
-  size_t m = 1000000;      // compression parameter (after compression vectors have
+  size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = 2;         // upper bound on the number of entries in each
                          // column of matrix
@@ -88,6 +88,17 @@ int main() {
   // Initialize a seeded random compressor.
   std::random_device rd;
   Compressor<long, double> compressor(bw * m, rd());
+
+  // Initialize a sparse matrix;
+  SparseMatrix<long, double> A(m,bw);
+
+  A.set_col(v,0);
+
+  print_ccs_matrix(A);
+
+  assert(0>1);
+
+
 
   // Initialize timings.
   clock_t start, end;
