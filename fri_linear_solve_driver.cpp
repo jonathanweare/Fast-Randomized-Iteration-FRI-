@@ -90,11 +90,38 @@ int main() {
   Compressor<long, double> compressor(bw * m, rd());
 
   // Initialize a sparse matrix;
-  SparseMatrix<long, double> A(m,bw);
+
+  SparseMatrix<long, double> A(3,2);
+
+  v.curr_size_ = 2;
+  v[0].val = 1.0;
+  v[0].idx = 0;
+  v[1].val = 2.0;
+  v[1].idx = 3;
+
+  A.set_col(v,2);
+
+  v.curr_size_ = 2;
+  v[0].val = 3.0;
+  v[0].idx = 0;
+  v[1].val = 4.0;
+  v[1].idx = 3;
 
   A.set_col(v,0);
 
-  print_ccs_matrix(A);
+  v.curr_size_ = 2;
+  v[0].val = 5.0;
+  v[0].idx = 0;
+  v[1].val = 6.0;
+  v[1].idx = 2;
+
+  A.set_col(v,0);
+
+  A.print_ccs();
+
+  A.print_crs();
+
+  A.print_ccs();
 
   assert(0>1);
 
