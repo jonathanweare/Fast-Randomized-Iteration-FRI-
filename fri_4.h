@@ -1036,6 +1036,18 @@ inline void SparseMatrix<IdxType, ValType>::fill_col(const size_t col_num, const
   std::iota(ccs_order_.begin()+col_head,ccs_order_.begin()+col_ends_[col_num],curr_size_);
   std::iota(inv_ccs_order_.begin()+curr_size_,inv_ccs_order_.begin()+curr_size_+other.curr_size_,col_head);
 
+  std::cout<<"in fill"<<std::endl;
+  std::cout << col_num <<"\t" <<col_head << std::endl;
+  for(size_t jj=0;jj<n_cols_;jj++){
+    std::cout<<jj<<"\t"<<jj*max_rowcol_nnz_<<"\t"<<col_ends_[jj] <<std::endl;
+  }
+  std::cout<<std::endl; 
+
+  for(size_t jj=0;jj<col_ends_[0];jj++){
+    std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].colidx << std::endl;
+  }
+  std::cout<<"out fill"<< std::endl;
+
   curr_size_ += other.curr_size_;
 
   is_crs_sorted_ = false;
@@ -1057,6 +1069,19 @@ inline void SparseMatrix<IdxType, ValType>::clear_col(const size_t col_num){
   col_len = col_ends_[col_num] - col_head;
   ccs_pos = ccs_order_.begin() + col_head;
 
+  std::cout<<"in clear"<<std::endl;
+  for(size_t jj=0;jj<curr_size_;jj++){
+    std::cout << jj <<"\t"<< entries_[jj].rowidx << "\t"<<entries_[jj].colidx << "\t"<<inv_ccs_order_[jj] << std::endl;
+  }
+  std::cout<<std::endl;
+  
+  for(size_t jj=0;jj<col_ends_[0];jj++){
+    std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].rowidx
+      << "\t" << entries_[ccs_order_[jj]].colidx << std::endl;
+  }
+  std::cout<<std::endl;
+  std::cout << col_head << std::endl;
+
   assert(col_len>=0);
 
   for (size_t jj=0; jj < col_len; jj++ ){      // swap iterators from end to fill unfilled old entries
@@ -1071,6 +1096,17 @@ inline void SparseMatrix<IdxType, ValType>::clear_col(const size_t col_num){
   }
 
   col_ends_[col_num] = col_head;
+
+  
+  for(size_t jj=0;jj<n_cols_;jj++){
+    std::cout<<jj<<"\t"<<jj*max_rowcol_nnz_<<"\t"<<col_ends_[jj] <<std::endl;
+  }
+  std::cout<<std::endl; 
+  for(size_t jj=0;jj<col_ends_[0];jj++){
+    std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].rowidx
+      << "\t" << entries_[ccs_order_[jj]].colidx << std::endl;
+  }
+  std::cout<<"out clear"<< std::endl;
 
   curr_size_ -= col_len;
 
@@ -1127,7 +1163,7 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
   else{                                                              // this won't be the largest column index
     entries_[curr_size_].colidx = idx;
     ccs_order_[n_cols_*max_rowcol_nnz_]=curr_size_;
-    col_id = std::lower_bound(col_ends_.begin(), col_ends_.begin()+n_cols_, n_cols_*max_rowcol_nnz_,
+    col_id = std::lower_bound(col_ends_.begin(), col_ends_.begin()+n_cols_, n_cols_*max_rowcol_nnz_+1,
       [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii-1]].colidx < entries_[ccs_order_[jj-1]].colidx; });
 
     assert(*col_id>0);
@@ -1135,20 +1171,33 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
     col_num = (*col_id-1) / max_rowcol_nnz_;
     col_head = col_num*max_rowcol_nnz_;
 
+    std::cout << "in" << std::endl;
+    std::cout << entries_[ccs_order_[n_cols_*max_rowcol_nnz_]].colidx << std::endl;
+    std::cout << idx << "\t"<<n_cols_ << "\t"<< *col_id <<"\t"<<col_num << "\t" <<col_head << std::endl;
+    std::cout << std::endl;
+    for(size_t jj=0;jj<n_cols_;jj++){
+      std::cout<<jj<<"\t"<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj]-1]].colidx <<std::endl;
+    }   
+    std::cout << col_head << "\t" << entries_[ccs_order_[col_head]].colidx << std::endl;
+    std::cout << std::endl;
+
     if (entries_[ccs_order_[col_head]].colidx == idx){                 // this replaces an existing column
-      // std::cout<<col_num<<std::endl;
+      std::cout<<col_num<<std::endl;
       clear_col(col_num);
     }
     else{                                                                     // this column is new
       // std::cout<< (entries_[ccs_order_[*col_id-1]].colidx < idx) << std::endl;
       // std::cout<<idx<<std::endl;
       // for(size_t jj=0;jj<n_cols_;jj++){
-      //   std::cout<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj-1]]].colidx <<std::endl;
+      //   std::cout<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj]-1]].colidx <<std::endl;
       // }                                                         
       // std::cout<<*col_id<<col_num<<std::endl;
       // std::cout<<std::endl;
       insert_col(col_num);
     }
+
+    std::cout<<"out"<<std::endl;
+    std::cout<<std::endl;
   }
   fill_col(col_num,idx,other);
 

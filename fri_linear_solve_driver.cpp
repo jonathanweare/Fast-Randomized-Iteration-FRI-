@@ -109,13 +109,15 @@ int main() {
 
   A.set_col(v,0);
 
+  A.print_ccs();
+
   v.curr_size_ = 2;
   v[0].val = 5.0;
   v[0].idx = 0;
   v[1].val = 6.0;
   v[1].idx = 2;
 
-  A.set_col(v,0);
+  A.set_col(v,2);
 
   A.print_ccs();
 
