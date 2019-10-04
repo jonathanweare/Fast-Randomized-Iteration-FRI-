@@ -10,59 +10,16 @@
 using namespace std;
 
 // A subroutine that returns the ii-th column of
-// the transfer matrix of the 2D Ising model.
-int transfer(SparseVector<long, double> &col, const long ii){
+// the matrix of interest
+int Gcolumn(SparseVector<long, double> &col, const long jj){
 
-  int n = 50;
-  double BB = 0.01;
-  double TT = 2.2;
-  
-  double aa, bb, cc, invaa, invbb, invcc;
-  long L;
-  
-  col.curr_size_ = 2;
+  const size_t d = 10;
 
-  aa = exp((2.0-BB)/TT);
-  bb = exp(-BB/TT);
-  cc = exp((-2.0-BB)/TT);
-  invaa = exp(-(2.0-BB)/TT);
-  invbb = exp(BB/TT);
-  invcc = exp((2.0+BB)/TT);
-
-  L = (long)1<<n;
-  
-  if (ii < (L>>2)){
-    col[0].val = aa;
-    col[0].idx = (ii<<1);
-
-    col[1].val = bb;
-    col[1].idx = (ii<<1)+1;
+  for(size_t ii=0;ii<d;ii++){
+    Gcolumn[ii].val = ( 1.12-0.72*((double)ii-1.0)/(double)d )*(1.12-0.72*((double)jj-1.0)/(double)d)/(double)d;
+    Gcolumn[ii].idx = (long)ii;
   }
-  else if (ii>= (L>>2) && ii< (L>>1)){
-    col[0].val = bb;
-    col[0].idx = (ii<<1);
-
-    col[1].val = cc;
-    col[1].idx = (ii<<1)+1;
-  }
-
-  else if (ii>=(L>>1) && ii< (L>>1)+(L>>2)){
-    col[0].val = invaa;
-    col[0].idx = (ii<<1)-L;
-
-    col[1].val = invbb;
-    col[1].idx = (ii<<1)+1-L;
-  }
-
-  else if (ii>= (L>>1)+(L>>2)){
-    col[0].val = invbb;
-    col[0].idx = (ii<<1)-L;
-
-    col[1].val = invcc;
-    col[1].idx = (ii<<1)+1-L;
-  } else {
-    printf("problem in Ising transfer matrix\n");
-  }
+  Gcolumn.curr_size_ = d;
 
   return 0;
 }
@@ -91,13 +48,15 @@ int main() {
 
   // Initialize a sparse matrix;
 
-  SparseMatrix<long, double> A(3,2);
+  SparseMatrix<long, double> A(3,3);
+
+  SparseVector<long, double> x(9);
 
   v.curr_size_ = 2;
   v[0].val = 1.0;
-  v[0].idx = 0;
+  v[0].idx = 1;
   v[1].val = 2.0;
-  v[1].idx = 3;
+  v[1].idx = 4;
 
   A.set_col(v,2);
 
@@ -107,7 +66,9 @@ int main() {
   v[1].val = 4.0;
   v[1].idx = 3;
 
-  A.set_col(v,0);
+  A.set_col(v,1);
+
+
 
   A.print_ccs();
 
@@ -117,7 +78,7 @@ int main() {
   v[1].val = 6.0;
   v[1].idx = 2;
 
-  A.set_col(v,2);
+  A.set_col(v,1);
 
   A.print_ccs();
 
@@ -125,57 +86,77 @@ int main() {
 
   A.print_ccs();
 
+  v.curr_size_ = 2;
+  v[0].val = 7.0;
+  v[0].idx = 4;
+  v[1].val = 8.0;
+  v[1].idx = 5;
+
+  A.set_col(v,0);
+
+  A.print_crs();
+
+  A.print_ccs();
+
+  A.get_row(1,x);
+
+  print_vector(x);
+
+  A.col_sums(x);
+
+  print_vector(x);
+
   assert(0>1);
 
 
 
-  // Initialize timings.
-  clock_t start, end;
-  double cpuTime;
+  // // Initialize timings.
+  // clock_t start, end;
+  // double cpuTime;
   
-  // Run Brn iterations without accumulating trajectory
-  // averages to discard initial transient.
-  double lambda;
-  for (size_t t = 0; t < Brn; t++) {
+  // // Run Brn iterations without accumulating trajectory
+  // // averages to discard initial transient.
+  // double lambda;
+  // for (size_t t = 0; t < Brn; t++) {
 
-    // Perform and time a compression and multiplication.
-    start = clock();
-    compressor.compress(v, m);
-    sparse_gemv(1.0, transfer, bw, v, 0.0, vnew);
-    end = clock();
+  //   // Perform and time a compression and multiplication.
+  //   start = clock();
+  //   compressor.compress(v, m);
+  //   sparse_gemv(1.0, transfer, bw, v, 0.0, vnew);
+  //   end = clock();
 
-    // Finish the iteration.
-    lambda = vnew.norm();
-    normalize(vnew);
-    v = vnew;
+  //   // Finish the iteration.
+  //   lambda = vnew.norm();
+  //   normalize(vnew);
+  //   v = vnew;
 
-    // Print an iterate summary.
-    printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, lambda, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
-  }
+  //   // Print an iterate summary.
+  //   printf("burn: %ld\t lambda: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
+  //      t+1, lambda, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+  // }
 
-  // Generate a trajectory of Nit iterations and 
-  // accumulate trajectory averages.
-  double lambda_ave = 0;
-  for (size_t t = 0; t < Nit; t++){
+  // // Generate a trajectory of Nit iterations and 
+  // // accumulate trajectory averages.
+  // double lambda_ave = 0;
+  // for (size_t t = 0; t < Nit; t++){
 
-    // Perform and time a compression and multiplication.
-    start = clock();
-    compressor.compress(v, m);
-    sparse_gemv(1.0, transfer, bw, v, 0.0, vnew);
-    end = clock();
+  //   // Perform and time a compression and multiplication.
+  //   start = clock();
+  //   compressor.compress(v, m);
+  //   sparse_gemv(1.0, transfer, bw, v, 0.0, vnew);
+  //   end = clock();
 
-    // Finish the iteration.
-    lambda = vnew.norm();
-    double eps = 1.0 / (1.0 + t);
-    lambda_ave = (1.0 - eps) * lambda_ave + eps * lambda;
-    normalize(vnew);
-    v = vnew;
+  //   // Finish the iteration.
+  //   lambda = vnew.norm();
+  //   double eps = 1.0 / (1.0 + t);
+  //   lambda_ave = (1.0 - eps) * lambda_ave + eps * lambda;
+  //   normalize(vnew);
+  //   v = vnew;
 
-    // Print an iterate summary.
-    printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
-       t+1, lambda, lambda_ave, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
-  }
+  //   // Print an iterate summary.
+  //   printf("iteration: %ld\t lambda: %lf\t average: %lf\t nonzeros: %ld\t time / iteration: %lf\n",
+  //      t+1, lambda, lambda_ave, v.curr_size_, ((double)end - start)/CLOCKS_PER_SEC);
+  // }
 
   return 0;  
 }

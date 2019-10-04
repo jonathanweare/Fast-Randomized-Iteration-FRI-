@@ -342,7 +342,7 @@ template <typename IdxType, typename ValType>
 inline void print_vector(SparseVector<IdxType, ValType> &vec) {
   std::cout << vec.curr_size_ << std::endl;
   for (size_t jj = 0; jj < vec.curr_size_; jj++) {
-    std::cout << vec[jj].val << "\t " << vec[jj].idx << std::endl;
+    std::cout << vec[jj].idx <<"\t"<<vec[jj].val << std::endl;
   }
   std::cout << std::endl;
 }
@@ -627,17 +627,24 @@ public:
   // it is replaced.
   //inline void set_row(const SparseVector<IdxType,ValType>& other, const IdxType idx);
 
+  // Remove a column from the matrix.
+  inline void eject_col(const size_t col_num);
+
   // Compute column sums and output in sparse vector.
-  inline void column_sums(SparseVector<IdxType,ValType>& other);
+  inline void col_sums(SparseVector<IdxType,ValType>& other);
 
   // Compute column norms and output in sparse vector.
-  inline void column_norms(SparseVector<IdxType,ValType>& other, size_t p);
+  inline void col_norms(SparseVector<IdxType,ValType>& other, size_t p);
 
   // Compute row sums and output in sparse vector.
   inline void row_sums(SparseVector<IdxType,ValType>& other);
 
   // Compute row norms and output in sparse vector.
   inline void row_norms(SparseVector<IdxType,ValType>& other, size_t p);
+
+  inline size_t locate_col(const IdxType idx);
+
+  inline size_t locate_row(const IdxType idx);
 
   // Get entry in CCS order
   // inline const SparseMatrixEntry<IdxType, ValType>& get_ccs_entry(const size_t idx) const {return entries_[idx];}
@@ -673,9 +680,11 @@ private:
   std::vector<size_t> crs_order_;  // lists the indices in row-first sorted order
   std::vector<size_t> row_ends_;   // the position (in row-first order) of the end of each row
   std::vector<size_t> col_ends_;    // the position (in column-first order) of the end of each column
-  inline void insert_col(const size_t col_num);
+  inline void inject_col(const size_t col_num);
   inline void clear_col(const size_t col_num);
   inline void fill_col(const size_t col_num, const IdxType idx, const SparseVector<IdxType,ValType>& other);
+  inline size_t locate_entry_ccs( const IdxType rowidx, const IdxType colidx );
+  inline size_t locate_entry_crs( const IdxType rowidx, const IdxType colidx );
   bool is_crs_sorted_;
   bool is_ccs_sorted_;
 };
@@ -981,7 +990,7 @@ inline void SparseMatrix<IdxType, ValType>::clear(){
 // Add in a new empty column.  Does not check for whether the column is new or whether it's being
 // placed in the correct position (that's why it's private).
 template <typename IdxType, typename ValType>
-inline void SparseMatrix<IdxType, ValType>::insert_col(const size_t col_num){
+inline void SparseMatrix<IdxType, ValType>::inject_col(const size_t col_num){
   assert(col_num<=n_cols_);
 
   size_t ii, jj, col_head = col_num*max_rowcol_nnz_;
@@ -1015,6 +1024,41 @@ inline void SparseMatrix<IdxType, ValType>::insert_col(const size_t col_num){
   return;
 }
 
+// Removes a column from the matrix.
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::eject_col(const size_t col_num){
+  assert(col_num<n_cols_);
+
+  clear_col(col_num);                        // make sure the column is cleared first;
+
+  size_t ii, jj, col_head = col_num*max_rowcol_nnz_;
+
+  // std::cout<<max_rowcol_nnz_<<std::endl;
+  // std::cout<<n_cols_<<std::endl;
+  // std::cout<<col_ends_[0]<<std::endl;
+
+  for( jj=col_num+1; jj<n_cols_; jj++){      // shift columns with larger index forward to create space for new column
+      //std::cout << jj-1 << std::endl;
+    for( ii=(jj-1)*max_rowcol_nnz_; ii<col_ends_[jj]; ii++){
+      //std::cout << ii <<std::endl;
+      inv_ccs_order_[ccs_order_[ii]] -= max_rowcol_nnz_;
+    }
+    std::swap_ranges(ccs_order_.begin()+jj*max_rowcol_nnz_,
+      ccs_order_.begin()+col_ends_[jj],ccs_order_.begin()+(jj-1)*max_rowcol_nnz_);
+    col_ends_[jj-1] = col_ends_[jj]-max_rowcol_nnz_;
+  }
+
+  // for(ii=0;ii<n_cols_+1;ii++)
+  //   std::cout << col_ends_[ii]<<std::endl;
+  // std::cout<<std::endl;
+
+  n_cols_--;
+
+  is_crs_sorted_ = false;
+
+  return;
+}
+
 // Assumes column col_num is empty and fills it with entries from the sparse vector
 // other.  Does not check that the column index idx is unique or that it's being
 // placed in the right position (that's why it's private).
@@ -1036,17 +1080,17 @@ inline void SparseMatrix<IdxType, ValType>::fill_col(const size_t col_num, const
   std::iota(ccs_order_.begin()+col_head,ccs_order_.begin()+col_ends_[col_num],curr_size_);
   std::iota(inv_ccs_order_.begin()+curr_size_,inv_ccs_order_.begin()+curr_size_+other.curr_size_,col_head);
 
-  std::cout<<"in fill"<<std::endl;
-  std::cout << col_num <<"\t" <<col_head << std::endl;
-  for(size_t jj=0;jj<n_cols_;jj++){
-    std::cout<<jj<<"\t"<<jj*max_rowcol_nnz_<<"\t"<<col_ends_[jj] <<std::endl;
-  }
-  std::cout<<std::endl; 
+  // std::cout<<"in fill"<<std::endl;
+  // std::cout << col_num <<"\t" <<col_head << std::endl;
+  // for(size_t jj=0;jj<n_cols_;jj++){
+  //   std::cout<<jj<<"\t"<<jj*max_rowcol_nnz_<<"\t"<<col_ends_[jj] <<std::endl;
+  // }
+  // std::cout<<std::endl; 
 
-  for(size_t jj=0;jj<col_ends_[0];jj++){
-    std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].colidx << std::endl;
-  }
-  std::cout<<"out fill"<< std::endl;
+  // for(size_t jj=0;jj<col_ends_[0];jj++){
+  //   std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].colidx << std::endl;
+  // }
+  // std::cout<<"out fill"<< std::endl;
 
   curr_size_ += other.curr_size_;
 
@@ -1069,50 +1113,172 @@ inline void SparseMatrix<IdxType, ValType>::clear_col(const size_t col_num){
   col_len = col_ends_[col_num] - col_head;
   ccs_pos = ccs_order_.begin() + col_head;
 
-  std::cout<<"in clear"<<std::endl;
-  for(size_t jj=0;jj<curr_size_;jj++){
-    std::cout << jj <<"\t"<< entries_[jj].rowidx << "\t"<<entries_[jj].colidx << "\t"<<inv_ccs_order_[jj] << std::endl;
-  }
-  std::cout<<std::endl;
+  if( col_len==0 )
+    return;
+
+  // std::cout<<"in clear"<<std::endl;
+  // for(size_t jj=0;jj<curr_size_;jj++){
+  //   std::cout << jj <<"\t"<< entries_[jj].rowidx << "\t"<<entries_[jj].colidx << "\t"<<inv_ccs_order_[jj] << std::endl;
+  // }
+  // std::cout<<std::endl;
   
-  for(size_t jj=0;jj<col_ends_[0];jj++){
-    std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].rowidx
-      << "\t" << entries_[ccs_order_[jj]].colidx << std::endl;
-  }
-  std::cout<<std::endl;
-  std::cout << col_head << std::endl;
+  // for(size_t jj=0;jj<col_ends_[0];jj++){
+  //   std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].rowidx
+  //     << "\t" << entries_[ccs_order_[jj]].colidx << std::endl;
+  // }
+  // std::cout<<std::endl;
+  // std::cout << col_head << "\t" << col_ends_[col_num] <<std::endl;
+  // std::cout<<std::endl;
 
   assert(col_len>=0);
 
   for (size_t jj=0; jj < col_len; jj++ ){      // swap iterators from end to fill unfilled old entries
-    assert(curr_size_-jj>=0);
-    if ( *(ccs_pos+jj)!=curr_size_-jj ){
-      std::iter_swap(entries_.begin()+*(ccs_pos+jj),entries_.begin()+curr_size_-jj);
+    assert(curr_size_>jj);
+    if ( *(ccs_pos+jj)!=curr_size_-jj-1 ){
+      // std::cout <<*(ccs_pos+jj)<<"\t"<<curr_size_-jj-1<<std::endl;
+      std::iter_swap(entries_.begin()+*(ccs_pos+jj),entries_.begin()+curr_size_-jj-1);
       new_loc = *(ccs_pos+jj);
-      ccs_loc = inv_ccs_order_[curr_size_-jj];
+      ccs_loc = inv_ccs_order_[curr_size_-jj-1];
       ccs_order_[ccs_loc] = new_loc;
       inv_ccs_order_[new_loc] = ccs_loc;
     }
   }
+  // std::cout<<std::endl;
 
   col_ends_[col_num] = col_head;
 
   
-  for(size_t jj=0;jj<n_cols_;jj++){
-    std::cout<<jj<<"\t"<<jj*max_rowcol_nnz_<<"\t"<<col_ends_[jj] <<std::endl;
-  }
-  std::cout<<std::endl; 
-  for(size_t jj=0;jj<col_ends_[0];jj++){
-    std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].rowidx
-      << "\t" << entries_[ccs_order_[jj]].colidx << std::endl;
-  }
-  std::cout<<"out clear"<< std::endl;
+  // for(size_t jj=0;jj<n_cols_;jj++){
+  //   std::cout<<jj<<"\t"<<jj*max_rowcol_nnz_<<"\t"<<col_ends_[jj] <<std::endl;
+  // }
+  // std::cout<<std::endl; 
+  // for(size_t jj=0;jj<col_ends_[0];jj++){
+  //   std::cout << jj <<"\t"<< ccs_order_[jj] << "\t" <<entries_[ccs_order_[jj]].rowidx
+  //     << "\t" << entries_[ccs_order_[jj]].colidx << std::endl;
+  // }
+  // std::cout<<"out clear"<< std::endl;
 
   curr_size_ -= col_len;
 
   is_crs_sorted_ = false;
 
   return;
+}
+
+
+// locate_col returns the column number of the column with index 
+// idx.  If no column has index idx the first column whose
+// index compares greater than idx is returned.  If all columns
+// have indices that compare less than idx then n_cols_ is returned.  
+template <typename IdxType, typename ValType>
+inline size_t SparseMatrix<IdxType, ValType>::locate_col(const IdxType idx){
+
+  if (!is_ccs_sorted_)
+    sort_ccs();
+
+  std::vector<size_t>::iterator col_id;
+
+  entries_[curr_size_].colidx = idx;
+  ccs_order_[n_cols_*max_rowcol_nnz_]=curr_size_;
+  col_id = std::lower_bound(col_ends_.begin(), col_ends_.begin()+n_cols_, n_cols_*max_rowcol_nnz_+1,
+    [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii-1]].colidx < entries_[ccs_order_[jj-1]].colidx; });
+
+  if( col_id==col_ends_.begin()+n_cols_ ){
+    return n_cols_;
+  }
+ 
+  return (*col_id-1) / max_rowcol_nnz_;
+}
+
+
+// locate_row returns the row number of the row with index 
+// idx.  If no row has index idx the first row whose
+// index compares greater than idx is returned.  If all rows
+// have indices that compare less than idx then n_rows_ is returned.  
+template <typename IdxType, typename ValType>
+inline size_t SparseMatrix<IdxType, ValType>::locate_row(const IdxType idx){
+
+  if (!is_crs_sorted_)
+    sort_crs();
+
+  std::vector<size_t>::iterator row_id;
+
+  entries_[curr_size_].rowidx = idx;
+  crs_order_[n_rows_*max_rowcol_nnz_]=curr_size_;
+  row_id = std::lower_bound(row_ends_.begin(), row_ends_.begin()+n_rows_, n_rows_*max_rowcol_nnz_+1,
+    [&](size_t ii, size_t jj) { return entries_[crs_order_[ii-1]].rowidx < entries_[crs_order_[jj-1]].rowidx; });
+
+  if( row_id==row_ends_.begin()+n_rows_ ){
+    return n_rows_;
+  }
+ 
+  return (*row_id-1) / max_rowcol_nnz_;
+}
+
+
+// locate the position in the ccs_order_ of entry with rowidx and colidx.  If no 
+// such entry is found return first position with entry that compares greater
+// than (rowidx,colidx) in CCS order.  Throws an error if the entry is new and
+// would belong to a column that already has max_rowcol_nnz_.
+template <typename IdxType, typename ValType>
+inline size_t SparseMatrix<IdxType, ValType>::locate_entry_ccs(const IdxType rowidx, const IdxType colidx){
+
+  if (!is_ccs_sorted_)
+    sort_ccs();
+
+  size_t col_head, col_num = locate_col(colidx);
+  std::vector<size_t>::iterator ccs_pos;
+
+  if( col_num == n_cols_ )
+    return n_cols_*max_rowcol_nnz_;
+
+  col_head = col_num*max_rowcol_nnz_;
+
+  if ( colidx == entries_[ccs_order_[col_head]].colidx ){
+    entries_[curr_size_].rowidx = rowidx;
+    ccs_pos = std::lower_bound(ccs_order_.begin()+col_head, ccs_order_.begin()+col_ends_[col_num], curr_size_,
+      [&](size_t ii, size_t jj) { return entries_[ii].rowidx < entries_[jj].rowidx; });
+    if( ccs_pos == ccs_order_.begin()+col_ends_[col_num] ){
+      assert( *ccs_pos-col_head < max_rowcol_nnz_);
+    }
+    return *ccs_pos;
+  }
+  else{
+    return col_head;
+  }
+}
+
+
+// locate the position in the crs_order_ of entry with rowidx and colidx.  If no 
+// such entry is found return first position with entry that compares greater
+// than (rowidx,colidx) in CRS order.  Throws an error if the entry is new and
+// would belong to a row that already has max_rowcol_nnz_.
+template <typename IdxType, typename ValType>
+inline size_t SparseMatrix<IdxType, ValType>::locate_entry_crs(const IdxType rowidx, const IdxType colidx){
+
+  if (!is_crs_sorted_)
+    sort_crs();
+
+  size_t row_head, row_num = locate_row(colidx);
+  std::vector<size_t>::iterator crs_pos;
+
+  if( row_num == n_rows_ )
+    return n_rows_*max_rowcol_nnz_;
+
+  row_head = row_num*max_rowcol_nnz_;
+
+  if ( rowidx == entries_[crs_order_[row_head]].rowidx ){
+    entries_[curr_size_].colidx = colidx;
+    crs_pos = std::lower_bound(crs_order_.begin()+row_head, crs_order_.begin()+row_ends_[row_num], curr_size_,
+      [&](size_t ii, size_t jj) { return entries_[ii].colidx < entries_[jj].colidx; });
+    if( crs_pos == crs_order_.begin()+row_ends_[row_num] ){
+      assert( *crs_pos-row_head < max_rowcol_nnz_);
+    }
+    return *crs_pos;
+  }
+  else{
+    return row_head;
+  }
 }
 
 
@@ -1137,7 +1303,7 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
 
     col_num = 0;
 
-    insert_col(col_num);
+    inject_col(col_num);
     fill_col(col_num,idx,other);
 
     for(size_t jj=0; jj<other.curr_size_; jj++ ){          // because it's the first column we preserve row ordering too
@@ -1153,36 +1319,34 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
 
   is_crs_sorted_ = false;
 
-  std::vector<size_t>::iterator ccs_pos, col_id, it;
   size_t col_head;
 
   if ( idx > entries_[ccs_order_[(n_cols_-1)*max_rowcol_nnz_]].colidx ){                // will this be the largest column index
     col_num = n_cols_;
-    insert_col(col_num);  
+    inject_col(col_num);  
   }
   else{                                                              // this won't be the largest column index
-    entries_[curr_size_].colidx = idx;
-    ccs_order_[n_cols_*max_rowcol_nnz_]=curr_size_;
-    col_id = std::lower_bound(col_ends_.begin(), col_ends_.begin()+n_cols_, n_cols_*max_rowcol_nnz_+1,
-      [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii-1]].colidx < entries_[ccs_order_[jj-1]].colidx; });
 
-    assert(*col_id>0);
+    col_num = locate_col(idx);
+    assert(col_num<n_cols_);
 
-    col_num = (*col_id-1) / max_rowcol_nnz_;
+    //std::cout<<col_num<<std::endl;
+
     col_head = col_num*max_rowcol_nnz_;
+    assert(col_head<col_ends_[col_num]);
 
-    std::cout << "in" << std::endl;
-    std::cout << entries_[ccs_order_[n_cols_*max_rowcol_nnz_]].colidx << std::endl;
-    std::cout << idx << "\t"<<n_cols_ << "\t"<< *col_id <<"\t"<<col_num << "\t" <<col_head << std::endl;
-    std::cout << std::endl;
-    for(size_t jj=0;jj<n_cols_;jj++){
-      std::cout<<jj<<"\t"<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj]-1]].colidx <<std::endl;
-    }   
-    std::cout << col_head << "\t" << entries_[ccs_order_[col_head]].colidx << std::endl;
-    std::cout << std::endl;
+    // std::cout << "in" << std::endl;
+    // std::cout << entries_[ccs_order_[n_cols_*max_rowcol_nnz_]].colidx << std::endl;
+    // std::cout << idx << "\t"<<n_cols_ << "\t"<< *col_id <<"\t"<<col_num << "\t" <<col_head << std::endl;
+    // std::cout << std::endl;
+    // for(size_t jj=0;jj<n_cols_;jj++){
+    //   std::cout<<jj<<"\t"<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj]-1]].colidx <<std::endl;
+    // }   
+    // std::cout << col_head << "\t" << entries_[ccs_order_[col_head]].colidx << std::endl;
+    // std::cout << std::endl;
 
     if (entries_[ccs_order_[col_head]].colidx == idx){                 // this replaces an existing column
-      std::cout<<col_num<<std::endl;
+      // std::cout<<col_num<<std::endl;
       clear_col(col_num);
     }
     else{                                                                     // this column is new
@@ -1193,11 +1357,11 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
       // }                                                         
       // std::cout<<*col_id<<col_num<<std::endl;
       // std::cout<<std::endl;
-      insert_col(col_num);
+      inject_col(col_num);
     }
 
-    std::cout<<"out"<<std::endl;
-    std::cout<<std::endl;
+    // std::cout<<"out"<<std::endl;
+    // std::cout<<std::endl;
   }
   fill_col(col_num,idx,other);
 
@@ -1332,8 +1496,8 @@ inline void SparseMatrix<IdxType, ValType>::get_col(const size_t col_num, Sparse
   y.curr_size_ = col_ends_[col_num] - col_head;
 
   for (size_t jj=col_head; jj<col_ends_[col_num]; jj++){
-    y.entries_[jj-col_head].idx = entries_[ccs_order_[jj]].rowidx;
-    y.entries_[jj-col_head].val = entries_[ccs_order_[jj]].val;
+    y[jj-col_head].idx = entries_[ccs_order_[jj]].rowidx;
+    y[jj-col_head].val = entries_[ccs_order_[jj]].val;
   }
 
   return;
@@ -1354,9 +1518,51 @@ inline void SparseMatrix<IdxType, ValType>::get_row(const size_t row_num, Sparse
   y.curr_size_ = row_ends_[row_num] - row_head;
 
   for (size_t jj=row_head; jj<row_ends_[row_num]; jj++){
-    y.entries_[jj-row_head].idx = entries_[crs_order_[jj]].colidx;
-    y.entries_[jj-row_head].val = entries_[crs_order_[jj]].val;
+    y[jj-row_head].idx = entries_[crs_order_[jj]].colidx;
+    y[jj-row_head].val = entries_[crs_order_[jj]].val;
   }
+
+  return;
+}
+
+
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::row_sums(SparseVector<IdxType, ValType>& y){
+  assert(y.max_size_>=n_rows_);
+
+  if(!is_crs_sorted_)
+    sort_crs();
+
+  for( size_t ii = 0; ii<n_rows_; ii++){
+    y[ii].val = entries_[crs_order_[ii*max_rowcol_nnz_]].val;
+    y[ii].idx = entries_[crs_order_[ii*max_rowcol_nnz_]].rowidx;
+    for( size_t jj = ii*max_rowcol_nnz_+1; jj<row_ends_[ii]; jj++){
+      y[ii].val += entries_[crs_order_[jj]].val;
+    }
+  }
+
+  y.curr_size_ = n_rows_;
+
+  return;
+}
+
+
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::col_sums(SparseVector<IdxType, ValType>& y){
+  assert(y.max_size_>=n_cols_);
+
+  if(!is_ccs_sorted_)
+    sort_ccs();
+
+  for( size_t jj = 0; jj<n_cols_; jj++){
+    y[jj].val = entries_[ccs_order_[jj*max_rowcol_nnz_]].val;
+    y[jj].idx = entries_[ccs_order_[jj*max_rowcol_nnz_]].colidx;
+    for( size_t ii = jj*max_rowcol_nnz_+1; ii<col_ends_[jj]; ii++){
+      y[jj].val += entries_[ccs_order_[ii]].val;
+    }
+  }
+
+  y.curr_size_ = n_cols_;
 
   return;
 }
@@ -1389,6 +1595,8 @@ template <typename IdxType, typename ValType>
 inline SparseMatrix<IdxType, ValType>& SparseMatrix<IdxType, ValType>::operator=(const SparseMatrix<IdxType, ValType> &other) {
   assert(other.curr_size_ <= max_size_);
   curr_size_ = other.curr_size_;
+  n_cols_ = other.n_cols_;
+  n_rows_ = other.n_rows_;
   for (size_t i = 0; i < other.curr_size_; i++) {
     entries_[i] = other.entries_[i];
     crs_order_[i] = other.crs_order_[i];
