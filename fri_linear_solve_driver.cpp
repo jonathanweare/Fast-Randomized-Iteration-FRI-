@@ -77,6 +77,9 @@ int main() {
   size_t bw = 2;         // upper bound on the number of entries in each
                          // column of matrix
 
+  // Create space for the column product of A with v
+  SparseMatrix<long, double> Av(bw*m);
+
   // Initialize iterate vectors.
   SparseVector<long, double> v(bw * m);
   SparseVector<long, double> vnew(bw * m);
@@ -123,6 +126,14 @@ int main() {
     start = clock();
     compressor.compress(v, m);
     sparse_gemv(1.0, transfer, bw, v, 0.0, vnew);
+    spcolwisemv(transfer,bw,v,Av);
+    Av.set_crs();
+    for ( size_t jj= 0; jj<Av.curr_size_; jj++){
+      Av.crs(jj)
+    }
+
+
+
     end = clock();
 
     // Finish the iteration.
