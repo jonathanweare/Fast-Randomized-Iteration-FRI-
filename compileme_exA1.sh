@@ -1,0 +1,1 @@
+g++ fri_exA1.cpp -o fri_ls -std=c++11 -O3
