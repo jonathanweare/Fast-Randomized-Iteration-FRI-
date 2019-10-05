@@ -658,6 +658,9 @@ public:
   inline void print_ccs();
   inline void print_crs();
 
+  inline int sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+    size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x);
+
   // Accessors for the underlying vector so one can do
   // some of the normal vector manipulation, but not all.
   // Specifically, subscripting and iterator begin and end
@@ -1627,8 +1630,7 @@ inline void SparseMatrix<IdxType, ValType>::print_ccs() {
     sort_ccs();
 
   size_t ccs_loc;
-  std::cout << curr_size_ << "\t" << n_cols_ << std::endl;
-  std::cout << std::endl;
+  std::cout << "entries: "<<curr_size_ << "  rows: " << n_cols_ << std::endl;
   for( size_t jj = 0; jj<n_cols_; jj++){
     for (size_t ii = jj*max_rowcol_nnz_; ii < col_ends_[jj]; ii++) {
       ccs_loc = ccs_order_[ii];
@@ -1649,8 +1651,7 @@ inline void SparseMatrix<IdxType, ValType>::print_crs() {
     sort_crs();
 
   size_t crs_loc;
-  std::cout << curr_size_ << "\t" << n_rows_ << std::endl;
-  std::cout << std::endl;
+  std::cout << "entries: "<<curr_size_ << "  rows: "<< n_rows_ << std::endl;
   for( size_t jj = 0; jj<n_rows_; jj++){
     for (size_t ii = jj*max_rowcol_nnz_; ii < row_ends_[jj]; ii++) {
       crs_loc = crs_order_[ii];
@@ -1660,7 +1661,7 @@ inline void SparseMatrix<IdxType, ValType>::print_crs() {
   std::cout << std::endl;
 }
 
-// spcolwisemv multiplies each column of 
+// sparse_colwisemv multiplies each column of 
 // the sparse matrix A by the corresponding
 // entry of the sparse vector x.
 // A is specified by a routine Acolumn that returns 
@@ -1671,13 +1672,12 @@ inline void SparseMatrix<IdxType, ValType>::print_crs() {
 // at least max_nz_col_entries * x.curr_size_.
 // B is overwritten upon output.
 template <typename IdxType, typename ValType>
-inline int sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x,
-        SparseMatrix<IdxType, ValType> &B)
+inline int SparseMatrix<IdxType, ValType>::sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+        size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x)
 {
   // Check for correct size; multiplication must not overflow.
-  assert(max_nz_col_entries<=B.max_rowcol_nnz_);
-  assert(x.curr_size_ <= B.max_cols_);
+  assert(max_nz_col_entries<=max_rowcol_nnz_);
+  assert(x.curr_size_ <= max_cols_);
 
   // Make a list of all the entries in A scaled
   // by the entry of x corresponding to the column
@@ -1688,21 +1688,21 @@ inline int sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, 
   for (size_t jj = 0; jj < x.curr_size_; jj++) {
     Acolumn(single_row_by_column_adds, x[jj].idx);
     for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
-      B[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
-      B[n_entry_adds].rowidx = single_row_by_column_adds[ii].idx;
-      B[n_entry_adds].colidx = x[jj].idx;
-      B.ccs_order_[jj*B.max_rowcol_nnz_+ii]=n_entry_adds;
-      B.inv_ccs_order_[n_entry_adds] = jj*B.max_rowcol_nnz+ii;
+      entries_[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
+      entries_[n_entry_adds].rowidx = single_row_by_column_adds[ii].idx;
+      entries_[n_entry_adds].colidx = x[jj].idx;
+      ccs_order_[jj*max_rowcol_nnz_+ii]=n_entry_adds;
+      inv_ccs_order_[n_entry_adds] = jj*max_rowcol_nnz_+ii;
       n_entry_adds++;
     }
-    B.col_ends_[jj] = jj*B.max_rowcol_nnz_ + single_row_by_column_adds.curr_size_;
+    col_ends_[jj] = jj*max_rowcol_nnz_ + single_row_by_column_adds.curr_size_;
   }
-  B.curr_size_ = n_entry_adds;
+  curr_size_ = n_entry_adds;
 
-  B.n_cols_ = x.curr_size_;
+  n_cols_ = x.curr_size_;
 
-  B.is_ccs_ordered_ = true;
-  B.is_crs_ordered_ = false;
+  is_ccs_sorted_ = true;
+  is_crs_sorted_ = false;
 
   return 0;
 }

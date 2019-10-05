@@ -13,13 +13,21 @@ using namespace std;
 // the matrix of interest
 int Gcolumn(SparseVector<long, double> &col, const long jj){
 
-  const size_t d = 10;
+  const size_t d = 3;
+
+  assert(d<=col.max_size_);
+
+  // for(size_t ii=0;ii<d;ii++){
+  //   col[ii].val = (double)jj*d+ii;
+  //   col[ii].idx = (long)ii;
+  // }
+  // col.curr_size_ = d;
 
   for(size_t ii=0;ii<d;ii++){
-    Gcolumn[ii].val = ( 1.12-0.72*((double)ii-1.0)/(double)d )*(1.12-0.72*((double)jj-1.0)/(double)d)/(double)d;
-    Gcolumn[ii].idx = (long)ii;
+    col[ii].val = ( 1.12-0.72*((double)ii-1.0)/(double)d )*(1.12-0.72*((double)jj-1.0)/(double)d)/(double)d;
+    col[ii].idx = (long)ii;
   }
-  Gcolumn.curr_size_ = d;
+  col.curr_size_ = d;
 
   return 0;
 }
@@ -33,6 +41,7 @@ int main() {
                          // no more than m non-zero entries)
   size_t bw = 2;         // upper bound on the number of entries in each
                          // column of matrix
+  size_t d = 3;
 
   // Initialize iterate vectors.
   SparseVector<long, double> v(bw * m);
@@ -46,63 +55,27 @@ int main() {
   std::random_device rd;
   Compressor<long, double> compressor(bw * m, rd());
 
-  SparseMatrix<long, double> A(3,3);
+  SparseMatrix<long, double> A(d,d);
 
-  SparseVector<long, double> x(9);
+  SparseVector<long, double> x(d);
+  SparseVector<long, double> b(2*d);
 
-  v.curr_size_ = 2;
-  v[0].val = 1.0;
-  v[0].idx = 1;
-  v[1].val = 2.0;
-  v[1].idx = 4;
-
-  A.set_col(v,2);
-
-  v.curr_size_ = 2;
-  v[0].val = 3.0;
-  v[0].idx = 0;
-  v[1].val = 4.0;
-  v[1].idx = 3;
-
-  A.set_col(v,1);
-
-
-
-  A.print_ccs();
-
-  v.curr_size_ = 2;
-  v[0].val = 5.0;
-  v[0].idx = 0;
-  v[1].val = 6.0;
-  v[1].idx = 2;
-
-  A.set_col(v,1);
-
-  A.print_ccs();
-
-  A.print_crs();
-
-  A.print_ccs();
-
-  v.curr_size_ = 2;
-  v[0].val = 7.0;
-  v[0].idx = 4;
-  v[1].val = 8.0;
-  v[1].idx = 5;
-
-  A.set_col(v,0);
-
-  A.print_crs();
-
-  A.print_ccs();
-
-  A.get_row(1,x);
+  for(size_t jj=0; jj<d; jj++){
+  	x[jj].val = 1.0/(2.25-1.45*((double)jj-1.0)/(double)d);
+  	x[jj].idx = (long)jj;
+  }
+  x.curr_size_ = d;
 
   print_vector(x);
 
-  A.col_sums(x);
+  A.sparse_colwisemv(Gcolumn, d, x);
 
-  print_vector(x);
+  A.row_sums(b);
+  print_vector(b);
+
+  sparse_axpy_v2(-1.0,x,b);
+
+  print_vector(b);
 
   assert(0>1);
 
