@@ -34,7 +34,7 @@ int Gcolumn(SparseVector<long, double> &col, const long jj){
 
 
 int main() {
-  size_t Nit = 1000;      // number of iterations after burn in
+  size_t Nit = 2;      // number of iterations after burn in
   size_t Brn = 100;      // number of burn in iterations (these
                          // are not included in trajectory averages)
   size_t m = 2;      // compression parameter (after compression vectors have
@@ -73,7 +73,19 @@ int main() {
   A.row_sums(b);
   print_vector(b);
 
-  sparse_axpy_v2(-1.0,x,b);
+  sparse_axpy(-1.0,x,b);
+
+  
+  for( size_t jj=0; jj<d; jj++ ){
+    b[jj].val = -b[jj].val;
+  }
+
+  print_vector(b);
+
+  for (size_t jj=0; jj<Nit; jj++){
+    A.sparse_colwisemv(Gcolumn, d, b);
+    A.row_sums(b);
+  }
 
   print_vector(b);
 
