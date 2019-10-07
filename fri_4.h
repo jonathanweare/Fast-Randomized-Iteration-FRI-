@@ -1899,10 +1899,12 @@ inline std::vector<size_t> Compressor<IdxType, ValType, RNG>::preserve(SparseVec
   xabs_.resize(x.curr_size_);
   ind_vec_.resize(x.curr_size_);
 
-  std::iota(begin(ind_vec_),end(ind_vec_), 0);
-  for (auto it = begin(ind_vec_); it != end(ind_vec_); it++){
-    xabs_[*it] = abs(x[*it].val);
-    //std::cout << xabs_[*it] << std::endl;
+  for (size_t jj = 0; jj < ind_vec_.size(); jj++){
+    ind_vec_[jj] = jj;
+    xabs_[jj] = abs(x[jj].val);
+    if( x[jj].val==0){
+      std::cout << jj << std::endl;
+    }
   }
 
   // Find entries to be preserved.
@@ -1932,21 +1934,21 @@ inline size_t Compressor<IdxType, ValType, RNG>::preserve_xabs(size_t target_nnz
     return xabs_.size();
   }
   else{
-    auto imax=begin(ind_vec_);
+    size_t imax;
     double sum;
 
     // Find the maximum and storage position of the maximum.
     double dmax = 0;
-    for (auto it = begin(ind_vec_); it!= end(ind_vec_); it++) {
-      if (xabs_[*it] > dmax) {
-        imax = it;
-        dmax = xabs_[*it];
+    for (size_t jj = 0; jj < ind_vec_.size(); jj++) {
+      if (xabs_[ind_vec_[jj]] > dmax) {
+        imax = jj;
+        dmax = xabs_[imax];
       }
     }
     // Place it at the end of the stored vector;
     // we are building a new vector in place by
     // transferring entries within the old one.
-    std::iter_swap( imax, end(ind_vec_)-1 );
+    std::swap( ind_vec_[imax], ind_vec_[ind_vec_.size()-1] );
 
     // Check if there are any elements large
     // enough to be preserved exactly.  If so
@@ -1968,15 +1970,13 @@ inline size_t Compressor<IdxType, ValType, RNG>::preserve_xabs(size_t target_nnz
       std::make_heap(begin(ind_vec_),end(ind_vec_) - nnz_large,
         [&](size_t ii, size_t jj){return xabs_[ii]<xabs_[jj];} );
 
-      imax = begin(ind_vec_);
-      while (( (target_nnz - nnz_large) * xabs_[*imax] > sum_unprocessed) 
+      while (( (target_nnz - nnz_large) * xabs_[ind_vec_[0]] > sum_unprocessed) 
                and (nnz_large < target_nnz)) {
-        sum_unprocessed -= xabs_[*imax];
+        sum_unprocessed -= xabs_[ind_vec_[0]];
         //std::cout << sum_unprocessed << std::endl; 
         assert(sum_unprocessed >0);
         std::pop_heap(begin(ind_vec_),end(ind_vec_) - nnz_large, 
           [&](size_t ii, size_t jj){return xabs_[ii]<xabs_[jj];} );
-        imax = begin(ind_vec_);
         nnz_large++;
       }
     }
@@ -2012,8 +2012,8 @@ inline size_t resample_sys(std::valarray<double>& xabs_, size_t target_nnz, RNG*
   }
 
   size_t nnz = 0;
-  for (auto it = begin(xabs_); it != end(xabs_); it++) {
-    if( *it > 0) nnz++;
+  for (size_t jj = 0; jj < xabs_.size(); jj++) {
+    if( xabs_[jj] > 0) nnz++;
   }
   return nnz;
 }

@@ -29,7 +29,7 @@ int Gcolumn(SparseVector<long, double> &col, const long jj){
 
 int main() {
   size_t d = 200;         // full dimension 
-  size_t Nspls = 1<<10;      // number of independent samples of the estimator to generate
+  size_t Nspls = 1<<18;      // number of independent samples of the estimator to generate
   size_t Nit = 1;      // number of iterations after burn in
   size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
