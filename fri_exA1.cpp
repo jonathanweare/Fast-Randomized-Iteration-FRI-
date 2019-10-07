@@ -13,7 +13,7 @@ using namespace std;
 // the matrix of interest
 int Gcolumn(SparseVector<long, double> &col, const long jj){
 
-  const size_t d = 200;
+  const size_t d = 10;
 
   assert(d<=col.max_size_);
 
@@ -29,8 +29,8 @@ int Gcolumn(SparseVector<long, double> &col, const long jj){
 
 int main() {
   size_t d = 200;         // full dimension 
-  size_t Nspls = 1<<12;      // number of independent samples of the estimator to generate
-  size_t Nit = 20;      // number of iterations after burn in
+  size_t Nspls = 1<<10;      // number of independent samples of the estimator to generate
+  size_t Nit = 1;      // number of iterations after burn in
   size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
@@ -68,6 +68,18 @@ int main() {
   // we'll measure the l2 error.
   double l2err, l1bias=0, var=0;
 
+  // and the error in a dot product.
+  double finst, ftrue, fbias=0, fvar=0;
+
+
+  // for(size_t jj=0; jj<d; jj++){
+  //   x[jj].val = 1.0;
+  //   x[jj].idx = jj;
+  // }
+  // x.curr_size_ = d;
+  // A.sparse_colwisemv(Gcolumn, d, x);
+  // //A.print_ccs();
+
 
   // The true solution vector xtrue
   for(size_t jj=0; jj<d; jj++){
@@ -94,6 +106,7 @@ int main() {
     sparse_axpy(1.0,y,x);
   }
   xtrue = x;
+  ftrue = xtrue.sum();
 
   // Generate Nspls independent samples of the estimatator of the Neumann sum
 	start = clock();
@@ -103,8 +116,6 @@ int main() {
   	y = b;
   	
   	for (size_t jj=0; jj<Nit; jj++){
-  		// preserve = compressor.preserve(y, m);
-  		// std::cout << preserve.size() << std::endl;
   		compressor.compress(y, m);
     	A.sparse_colwisemv(Gcolumn, d, y);
     	A.row_sums(y);
@@ -114,6 +125,9 @@ int main() {
   	// Update the bias vector and compute the l2 error of the approximate solution.
   	sparse_axpy(-1.0,xtrue,x);
   	sparse_axpy(1.0,x,bias);
+    finst = x.sum();
+    fbias += finst;
+    fvar += finst*finst;
 
   	l2err = 0;
   	for(size_t jj=0; jj<d; jj++){
@@ -128,9 +142,13 @@ int main() {
   	l1bias += fabs(bias[jj].val);
   }
   l1bias /= (double)Nspls;
+  fbias /= (double)Nspls;
+  fvar /= (double)Nspls;
 
   // Print result.
-  printf("Bias and standard deviation after %lu samples of %lu iterations:  %le\t %le\n", Nspls, Nit, l1bias, sqrt(var));
+  //printf("%le\n",l1bias);
+  printf("Bias and standard deviation after %lu samples of %lu iterations:  %le +/- %le, \t %le\n",
+    Nspls, Nit, fbias,2*sqrt(fvar/(double)Nspls), sqrt(fvar));
   printf("Time elapsed:  %lf\n",((double)end - start)/CLOCKS_PER_SEC);
 
 
