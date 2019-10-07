@@ -1819,20 +1819,20 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   xabs_.resize(x.curr_size_);
   ind_vec_.resize(x.curr_size_);
 
-  std::iota(begin(ind_vec_),end(ind_vec_), 0);
-  for (auto it = begin(ind_vec_); it != end(ind_vec_); it++){
-    xabs_[*it] = abs(x[*it].val);
-    if( x[*it].val==0){
-      std::cout << *it << std::endl;
+  for (size_t jj = 0; jj < ind_vec_.size(); jj++){
+    ind_vec_[jj] = jj;
+    xabs_[jj] = abs(x[jj].val);
+    if( x[jj].val==0){
+      std::cout << jj << std::endl;
     }
   }
 
   // Set tiny entries to zero.
   double xabs_sum = xabs_.sum();
   double Tol = 1e-12;
-  for ( auto it = begin(xabs_); it != end(xabs_); it++) {
-    if (*it < Tol * xabs_sum) {
-      *it = 0.0;
+  for (size_t jj = 0; jj < xabs_.size(); jj++) {
+    if (xabs_[jj] < Tol * xabs_sum) {
+      xabs_[jj] = 0.0;
     }
   }
   xabs_sum = xabs_.sum();
@@ -1852,11 +1852,13 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 
   if (nnz_large < target_nnz){
     size_t nnz_small = xabs_.size()-nnz_large;
+    size_t ii;
 
     // write in the preserved entries.
-    for( auto it = begin(ind_vec_)+nnz_small; it != end(ind_vec_); it++ ){
-      assert(x[*it].val != 0);
-      x[*it].val = (x[*it].val / abs(x[*it].val))*xabs_[*it];
+    for( size_t jj = nnz_small; jj < ind_vec_.size(); jj++ ){
+      ii = ind_vec_[jj];
+      assert(x[ii].val != 0);
+      x[ii].val = (x[ii].val / abs(x[ii].val))*xabs_[ii];
     }
 
     //std::cout<<nnz_small<<std::endl;
