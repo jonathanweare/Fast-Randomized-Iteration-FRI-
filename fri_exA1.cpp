@@ -71,7 +71,7 @@ int main() {
   // and the error in a dot product.
   double finst, ftrue, fbias=0, fvar=0;
 
-
+  // If you want you can build and print the whole matrix.
   // for(size_t jj=0; jj<d; jj++){
   //   x[jj].val = 1.0;
   //   x[jj].idx = jj;
