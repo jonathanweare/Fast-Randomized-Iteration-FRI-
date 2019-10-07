@@ -2,8 +2,8 @@
 // subroutines
 // (c) Jonathan Weare 2015
 
-#ifndef _fri_3_h_
-#define _fri_3_h_
+#ifndef _fri_4_h_
+#define _fri_4_h_
 
 #include <iostream> 
 #include <cassert>
@@ -11,6 +11,7 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
+#include <valarray>
 // #include "fri_index.h"
 
 //---------------------------------------------------------
@@ -156,7 +157,7 @@ inline void print_vector(SparseVector<IdxType, ValType> &vec);
 // all entries of x and y; no allocation
 // will be performed by this routine.
 template <typename IdxType, typename ValType>
-inline int sparse_axpy(ValType alpha,
+inline int sparse_axpy(const ValType alpha,
          const SparseVector<IdxType, ValType> &x,
          SparseVector<IdxType, ValType> &y);
 
@@ -374,7 +375,7 @@ inline void print_vector(SparseVector<IdxType, ValType> &vec) {
 // will be performed by this routine.
 // *** UNTESTED ****
 template <typename IdxType, typename ValType>
-inline int sparse_axpy(ValType alpha,
+inline int sparse_axpy(const ValType alpha,
          const SparseVector<IdxType, ValType> &x,
          SparseVector<IdxType, ValType> &y) {
   // If alpha is not zero, then ensure the
@@ -1751,43 +1752,54 @@ inline int SparseMatrix<IdxType, ValType>::sparse_colwisemv(int (*Acolumn)(Spars
 //---------------------------------------------------------
 
 // Sparse vector compression class.
-template <typename IdxType, typename ValType>
+template <typename IdxType, typename ValType, class RNG>
 class Compressor {
 private:
   
   // Temporary storage for an intermediate.
-  SparseVector<size_t, double> xabs_;
+  std::valarray<size_t> ind_vec_;
+  std::valarray<double> xabs_;
   
   // Random number generator.
-  std::mt19937_64 gen_;
+  RNG* gen_;
   std::uniform_real_distribution<> uu_;
   
   // Do not allow copying or assignment for compressors.
-  Compressor<IdxType, ValType>(Compressor<IdxType, ValType> &);
-  Compressor<IdxType, ValType>& operator= (Compressor<IdxType, ValType> &);
+  Compressor<IdxType, ValType, RNG>(Compressor<IdxType, ValType, RNG> &);
+  Compressor<IdxType, ValType, RNG>& operator= (Compressor<IdxType, ValType, RNG> &);
+
+  size_t nnz_;
   
   // Helper function: compress the internal 
   // vector of moduli.
-  inline void compress_xabs_sys(size_t target_nnz);
-  inline void compress_xabs_dmc(size_t target_nnz);
+  inline size_t preserve_xabs(size_t target_nnz);
+  // inline void compress_xabs_sys(size_t target_nnz);
+  // inline void compress_xabs_dmc(size_t target_nnz);
 
 public:
 
   // Constructor based on maximum size of the
   // modulus vector and a random seed.
-  inline Compressor<IdxType, ValType>(size_t max_size, size_t seed) : 
-    xabs_(SparseVector<size_t, double>(max_size)) {
+  inline Compressor<IdxType, ValType, RNG>(size_t max_size, RNG& generator) : 
+    xabs_(max_size) {
     // Set up the pseudorandom number generator.
-    gen_ = std::mt19937_64(seed);
+    gen_ = &generator;
     uu_ = std::uniform_real_distribution<>(0,1);
   }
   
   // Compress a SparseVector using the stored
   // temp vector and pseudorandom number generator.
   void compress(SparseVector<IdxType, ValType> &x, size_t target_nnz);
+
+  // Return a mask of the sparse vector indicating which entries should
+  // be preserved exactly in a compression.
+  std::vector<size_t> preserve(SparseVector<IdxType, ValType> &x, size_t target_nnz);
 };
 
 
+
+template <class RNG>
+inline size_t resample_sys(std::valarray<double>& xabs_, size_t target_nnz, RNG* gen_);
 
 
 
@@ -1800,150 +1812,209 @@ using std::abs;
 
 // Compress a SparseVector using the stored
 // temp vector and pseudorandom number generator.
-template <typename IdxType, typename ValType>
-inline void Compressor<IdxType, ValType>::compress(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
+template <typename IdxType, typename ValType, class RNG>
+inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
   // Copy the modulus of each entry into xabs_.
-  assert(x.curr_size_ <= xabs_.max_size_);
-  size_t ii = 0;
-  for (size_t jj = 0; jj< x.curr_size_; jj++){
-    xabs_[ii].val = abs(x[jj].val);
-    xabs_[ii].idx = jj;
-    if (xabs_[ii].val>0) ii++;
+
+  xabs_.resize(x.curr_size_);
+  ind_vec_.resize(x.curr_size_);
+
+  std::iota(begin(ind_vec_),end(ind_vec_), 0);
+  for (auto it = begin(ind_vec_); it != end(ind_vec_); it++){
+    xabs_[*it] = abs(x[*it].val);
+    if( x[*it].val==0){
+      std::cout << *it << std::endl;
+    }
   }
-  xabs_.curr_size_ = ii;
-  // Compress the moduli vector.
-  compress_xabs_sys(target_nnz);
-  // Translate the compression of the moduli vector to
-  // a compression of the input vector. For each entry
-  // of the compressed xabs,
-  for(size_t jj = 0; jj < xabs_.curr_size_; jj++){
-    // Find the corresponding member of x and
-    // set its modulus according to the modulus
-    // of xabs.
-    ii = xabs_[jj].idx;
-    assert(x[ii].val != 0);
-    x[ii].val = (x[ii].val / abs(x[ii].val)) * xabs_[jj].val;
+
+  // Set tiny entries to zero.
+  double xabs_sum = xabs_.sum();
+  double Tol = 1e-12;
+  for ( auto it = begin(xabs_); it != end(xabs_); it++) {
+    if (*it < Tol * xabs_sum) {
+      *it = 0.0;
+    }
+  }
+  xabs_sum = xabs_.sum();
+
+  // for( auto it = begin(ind_vec_); it != end(ind_vec_); it++ ){
+  //   std::cout << *it << "\t" << xabs_[*it] << std::endl;
+  // }
+  // std::cout<<std::endl;
+  
+  size_t nnz_large = preserve_xabs(target_nnz);
+  assert(nnz_large<=target_nnz);
+
+  // for( auto it = begin(ind_vec_); it != end(ind_vec_); it++ ){
+  //   std::cout << *it <<  "\t" << xabs_[*it] <<std::endl;
+  // }
+  // std::cout<<std::endl;
+
+  if (nnz_large < target_nnz){
+    size_t nnz_small = xabs_.size()-nnz_large;
+
+    // write in the preserved entries.
+    for( auto it = begin(ind_vec_)+nnz_small; it != end(ind_vec_); it++ ){
+      assert(x[*it].val != 0);
+      x[*it].val = (x[*it].val / abs(x[*it].val))*xabs_[*it];
+    }
+
+    //std::cout<<nnz_small<<std::endl;
+
+    // Cut the preserved entries out of xabs_
+    std::valarray<size_t> ind_resample = ind_vec_[std::slice(0,nnz_small,1)];
+    std::valarray<double> xabs_resample = xabs_[ind_resample];
+    xabs_sum = xabs_resample.sum();
+    xabs_resample /= xabs_sum;
+
+    // Resample the remaining entries.
+    resample_sys(xabs_resample,target_nnz-nnz_large, gen_);
+
+    // compress_xabs_sys(target_nnz-nnz_large);
+    // Translate the compression of the moduli vector to
+    // a compression of the input vector. For each entry
+    // of the compressed xabs,
+    for( size_t jj = 0; jj < nnz_small; jj++){
+      // Find the corresponding member of x and
+      // set its modulus according to the modulus
+      // of xabs.
+      //std::cout<< ind_resample[jj] <<"\t"<< x[ind_resample[jj]].val << std::endl;
+      assert(x[ind_resample[jj]].val != 0);
+      x[ind_resample[jj]].val = (x[ind_resample[jj]].val / abs(x[ind_resample[jj]].val)) 
+        * xabs_resample[jj] * xabs_sum/(double)(target_nnz-nnz_large);
+    }
   }
   // Remove the entries set to zero.
   remove_zeros(x);
   // The vector is now compressed.
 }
 
-template <typename IdxType, typename ValType>
-inline void Compressor<IdxType, ValType>::compress_xabs_sys(size_t target_nnz) {
-  // First count the number of actually
-  // non-zero entries and check that
-  // all entries are non-negative.
-  double Tol = 1e-12;
-  size_t nnz = xabs_.curr_size_;
-  double initial_sum = xabs_.norm();
-  for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-    assert(xabs_[ii].val>= 0);
-    if (xabs_[ii].val < Tol * initial_sum) {
-      nnz -= 1;
-      xabs_[ii].val = 0.0;
-    }
+// Return the indices of the sparse vector that should
+// be preserved in a compression.
+template <typename IdxType, typename ValType, class RNG>
+inline std::vector<size_t> Compressor<IdxType, ValType, RNG>::preserve(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
+
+  xabs_.resize(x.curr_size_);
+  ind_vec_.resize(x.curr_size_);
+
+  std::iota(begin(ind_vec_),end(ind_vec_), 0);
+  for (auto it = begin(ind_vec_); it != end(ind_vec_); it++){
+    xabs_[*it] = abs(x[*it].val);
+    //std::cout << xabs_[*it] << std::endl;
   }
 
-  // cout << nnz << "\t" << target_nnz << "\n";
-    
-  // If there are already fewer than n nonzero
-  // entries, no compression is needed.
-  if (nnz <= target_nnz) {
-    return;
-  // Otherwise, perform compression.
-  } else {
-      
+  // Find entries to be preserved.
+  size_t nnz_large = preserve_xabs(target_nnz);
+  size_t nnz_small = xabs_.size()-nnz_large;
+
+  std::vector<size_t> result(nnz_large);
+
+  // Translate the compression of the moduli vector to
+  // a compression of the input vector. For each entry
+  // of the compressed xabs,
+  for(size_t jj = nnz_small; jj < xabs_.size(); jj++){
+    // Find the corresponding member of x and
+    // set its modulus according to the modulus
+    // of xabs.
+    result[jj-nnz_small] = ind_vec_[jj];
+  }
+  return result;
+}
+
+// Move the largest entries to the back of xabs so they will be preserved exactly
+// by the compression.
+template <typename IdxType, typename ValType, class RNG>
+inline size_t Compressor<IdxType, ValType, RNG>::preserve_xabs(size_t target_nnz) {
+
+  if (xabs_.size()<=target_nnz){
+    return xabs_.size();
+  }
+  else{
+    auto imax=begin(ind_vec_);
+    double sum;
+
     // Find the maximum and storage position of the maximum.
     double dmax = 0;
-    size_t imax;
-    for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-      if (xabs_[ii].val > dmax) {
-        imax = ii;
-        dmax = xabs_[ii].val;
+    for (auto it = begin(ind_vec_); it!= end(ind_vec_); it++) {
+      if (xabs_[*it] > dmax) {
+        imax = it;
+        dmax = xabs_[*it];
       }
     }
     // Place it at the end of the stored vector;
     // we are building a new vector in place by
     // transferring entries within the old one.
-    std::swap( xabs_[xabs_.curr_size_ - 1], xabs_[imax]);
-    
+    std::iter_swap( imax, end(ind_vec_)-1 );
+
     // Check if there are any elements large
     // enough to be preserved exactly.  If so
     // heapify and pull large entries until remaining
     // entries are not large enough to be preserved
     // exactly.
+
+  // sum = 0;
+  //   for( size_t jj=0; jj<ind_vec_.size(); jj++) sum+= xabs_[jj];  
+
+    //std::cout<< sum << "\t"<< xabs_.sum() << std::endl;
+    //assert(1<0); 
+
     size_t nnz_large = 0;
-    double sum_unprocessed;
-    initial_sum = sum_unprocessed = xabs_.sum();
+    double sum_unprocessed = xabs_.sum();
     if (target_nnz * dmax > sum_unprocessed) {
       nnz_large = 1;
       sum_unprocessed -= dmax;
-      std::make_heap(xabs_.begin(),
-                     xabs_.begin() + xabs_.curr_size_ - nnz_large, 
-                     spveccomparebyval());
-    
-      while (( (target_nnz - nnz_large) * xabs_[0].val > sum_unprocessed) 
-               && (nnz_large < target_nnz)) {
-        sum_unprocessed -= xabs_[0].val;
+      std::make_heap(begin(ind_vec_),end(ind_vec_) - nnz_large,
+        [&](size_t ii, size_t jj){return xabs_[ii]<xabs_[jj];} );
+
+      imax = begin(ind_vec_);
+      while (( (target_nnz - nnz_large) * xabs_[*imax] > sum_unprocessed) 
+               and (nnz_large < target_nnz)) {
+        sum_unprocessed -= xabs_[*imax];
+        //std::cout << sum_unprocessed << std::endl; 
         assert(sum_unprocessed >0);
-        std::pop_heap(xabs_.begin(),
-                     xabs_.begin() + xabs_.curr_size_ - nnz_large, 
-                     spveccomparebyval());
+        std::pop_heap(begin(ind_vec_),end(ind_vec_) - nnz_large, 
+          [&](size_t ii, size_t jj){return xabs_[ii]<xabs_[jj];} );
+        imax = begin(ind_vec_);
         nnz_large++;
       }
     }
-    nnz = nnz_large;
-
-    // cout << nnz_large << "\t" << target_nnz << "\n";
-
-    assert(nnz_large < target_nnz);
-
-    // Compute the norm of the vector of
-    // remaining small entries.
-    size_t n_small_entries = xabs_.curr_size_ - nnz_large;
-    double sum_small = 0;
-    for (size_t ii = 0; ii < n_small_entries; ii++) {
-      sum_small += xabs_[ii].val;
-    }
-
-
-    // Compress remaining small entries, assuming more
-    // nonzeros are needed and small entries are not 
-    // too small in sum. Entries that are not set to 
-    // zero are set to the norm of the vector of remaining
-    // small entries divided by the difference between 
-    // target_nnz and the number of large entries preserved 
-    // exactly.
-    size_t target_nnz_from_small = target_nnz - nnz_large;
-    double target_small_entry_average = sum_small / (double) target_nnz_from_small;
-    size_t jj = 0;
-    double w = xabs_[0].val/target_small_entry_average;
-    xabs_[0].val = 0;
-    double U = uu_(gen_);
-    for(size_t ii=0; ii<target_nnz_from_small; ii++ ){
-      // double U = uu_(gen_);
-      while( w < ii + U ){
-        jj++;
-        w += xabs_[jj].val / target_small_entry_average;
-        xabs_[jj].val = 0;
-      }
-      xabs_[jj].val += target_small_entry_average;
-      assert(xabs_[jj].val <= 2*target_small_entry_average);
-    }
-    jj++;
-    while( jj < n_small_entries){
-      xabs_[jj].val = 0;
-      jj++; 
-    }
-
-    nnz = 0;
-    for (size_t ii = 0; ii < xabs_.curr_size_; ii++) {
-      if( xabs_[ii].val > 0) nnz++;
-    }
+    return nnz_large;
   }
 }
 
+
+
+template <class RNG>
+inline size_t resample_sys(std::valarray<double>& xabs_, size_t target_nnz, RNG* gen_) {
+
+  std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
+
+  size_t jj = 0;
+  double w = xabs_[0]*(double)target_nnz;
+  xabs_[0] = 0;
+  double U = uu_(*gen_);
+  for(size_t ii=0; ii<target_nnz; ii++ ){
+    // double U = uu_(gen_);
+    while( w < ii + U ){
+      jj++;
+      w += xabs_[jj]*(double)target_nnz;
+      xabs_[jj] = 0;
+    }
+    xabs_[jj]+=1.0;
+    assert(xabs_[jj] < 2);
+  }
+  jj++;
+  while( jj < xabs_.size()){
+    xabs_[jj] = 0;
+    jj++; 
+  }
+
+  size_t nnz = 0;
+  for (auto it = begin(xabs_); it != end(xabs_); it++) {
+    if( *it > 0) nnz++;
+  }
+  return nnz;
+}
 
 
 

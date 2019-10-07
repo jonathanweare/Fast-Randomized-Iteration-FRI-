@@ -13,15 +13,9 @@ using namespace std;
 // the matrix of interest
 int Gcolumn(SparseVector<long, double> &col, const long jj){
 
-  const size_t d = 10;
+  const size_t d = 200;
 
   assert(d<=col.max_size_);
-
-  // for(size_t ii=0;ii<d;ii++){
-  //   col[ii].val = (double)jj*d+ii;
-  //   col[ii].idx = (long)ii;
-  // }
-  // col.curr_size_ = d;
 
   for(size_t ii=0;ii<d;ii++){
     col[ii].val = ( 1.12-0.72*((double)ii)/(double)d )*(1.12-0.72*((double)jj)/(double)d)/(double)d;
@@ -34,38 +28,45 @@ int Gcolumn(SparseVector<long, double> &col, const long jj){
 
 
 int main() {
-  size_t d = 10;         // full dimension 
-  size_t Nspls = 1;      // number of independent samples of the estimator to generate
-  size_t Nit = 10;      // number of iterations after burn in
-  size_t m = d;      // compression parameter (after compression vectors have
+  size_t d = 200;         // full dimension 
+  size_t Nspls = 1<<12;      // number of independent samples of the estimator to generate
+  size_t Nit = 20;      // number of iterations after burn in
+  size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
+  size_t seed = 0;        // seed for RNG.  Can choose random seet below.
 
   // Initialize iterate vectors and submatrix.
-  SparseMatrix<long, double> A(m,d);
+  SparseMatrix<long, double> A(d,d);
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
   SparseVector<long, double> y(d);
   SparseVector<long, double> x(2*d);
-  SparseVector<long, double> xave(2*d);
+  SparseVector<long, double> bias(2*d);
 
-  for(size_t jj=0;jj<d;jj++){
-  	xave[jj].idx = jj;
-  	xave[jj].val = 0;
+  std::vector<size_t> preserve;
+
+  for(size_t jj=0;jj<2*d;jj++){
+  	bias[jj].idx = jj;
+  	bias[jj].val = 0;
   }
+  bias.curr_size_ = d;
   
 
   // Initialize a seeded random compressor.
   std::random_device rd;
-  Compressor<long, double> compressor(bw * m, rd());
+  std::mt19937_64 generator;
+  generator = std::mt19937_64(seed);
+  //seed = rd();
+  Compressor<long, double, std::mt19937_64> compressor(bw * m, generator);
 
   // Initialize timings.
   clock_t start, end;
   double cpuTime;
 
   // we'll measure the l2 error.
-  double l2err, bias, var=0;
+  double l2err, l1bias=0, var=0;
 
 
   // The true solution vector xtrue
@@ -83,6 +84,18 @@ int main() {
   sparse_axpy(-1.0,b,x);
   b = x;
 
+  // compute the true Neumann sum up to Nit powers of G starting from b
+  x = b;
+  y = b;
+
+	for (size_t jj=0; jj<Nit; jj++){
+    A.sparse_colwisemv(Gcolumn, d, y);
+    A.row_sums(y);
+    sparse_axpy(1.0,y,x);
+  }
+  xtrue = x;
+
+  // Generate Nspls independent samples of the estimatator of the Neumann sum
 	start = clock();
   for (size_t spl = 0; spl<Nspls; spl++){
   	// Compute the Neumann sum up to Nit powers of G starting from b
@@ -90,32 +103,34 @@ int main() {
   	y = b;
   	
   	for (size_t jj=0; jj<Nit; jj++){
+  		// preserve = compressor.preserve(y, m);
+  		// std::cout << preserve.size() << std::endl;
   		compressor.compress(y, m);
     	A.sparse_colwisemv(Gcolumn, d, y);
     	A.row_sums(y);
     	sparse_axpy(1.0,y,x);
   	}
 
-  	// Compute the l2 error of the approximate solution.
+  	// Update the bias vector and compute the l2 error of the approximate solution.
   	sparse_axpy(-1.0,xtrue,x);
+  	sparse_axpy(1.0,x,bias);
+
   	l2err = 0;
   	for(size_t jj=0; jj<d; jj++){
   		l2err += x[jj].val*x[jj].val;
   	}
   	var += l2err/(double)Nspls;
-
-  	sparse_axpy(1.0/Nspls,x,xave);
 	}
 	end = clock();
 
-	sparse_axpy(-1.0,xtrue,xave);
-	bias = 0;
+	// Compute the 1 norm of the bias vector.
   for(size_t jj=0; jj<d; jj++){
-  	bias += fabs(xave[jj].val);
+  	l1bias += fabs(bias[jj].val);
   }
+  l1bias /= (double)Nspls;
 
   // Print result.
-  printf("Bias and variance after %lu samples of %lu iteration:  %le\t %le\n", Nspls, Nit, bias, var);
+  printf("Bias and standard deviation after %lu samples of %lu iterations:  %le\t %le\n", Nspls, Nit, l1bias, sqrt(var));
   printf("Time elapsed:  %lf\n",((double)end - start)/CLOCKS_PER_SEC);
 
 
