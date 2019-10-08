@@ -1801,6 +1801,9 @@ public:
 template <class RNG>
 inline size_t resample_sys(std::valarray<double>& xabs_, size_t target_nnz, RNG* gen_);
 
+template <class RNG>
+inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG* gen_);
+
 
 
 //---------------------------------------------------------
@@ -1870,7 +1873,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
     xabs_resample /= xabs_sum;
 
     // Resample the remaining entries.
-    resample_sys(xabs_resample,target_nnz-nnz_large, gen_);
+    resample_piv(xabs_resample,target_nnz-nnz_large, gen_);
 
     // compress_xabs_sys(target_nnz-nnz_large);
     // Translate the compression of the moduli vector to
@@ -2018,6 +2021,96 @@ inline size_t resample_sys(std::valarray<double>& xabs_, size_t target_nnz, RNG*
   return nnz;
 }
 
+
+
+
+
+template <class RNG>
+inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG* gen_) {
+
+  std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
+
+  std::valarray<double> s_vec((double)0, xabs_.size());
+
+  xabs_ *= (double)target_nnz;
+
+  size_t ii = 0;
+  size_t jj = 1;
+  size_t kk = 2;
+  double a=xabs_[0], b=xabs_[1];
+  double EPS = 1e-6;
+
+  while( kk< xabs_.size() ){
+    if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
+      if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
+        a=1.0;
+        b+=a-1.0;
+      }
+      else{
+        a+=b-1.0;
+        b=1.0;
+      }
+    }
+    if ( a>=EPS and b<=1.0-EPS and a+b<=1.0 ){
+      if ( uu_(*gen_)< b/(a+b) ){
+        a=0;
+        b+=a;
+      }
+      else{
+        a+=b;
+        b=0;
+      }
+    }
+    if ( (a<EPS or a>1.0-EPS) and kk<xabs_.size() ){
+      s_vec[ii] = a;
+      a = xabs_[kk];
+      ii = kk;
+      kk++;
+    }
+    if ( (b<EPS or b>1.0-EPS) and kk<xabs_.size() ){
+      s_vec[jj]=b;
+      b = xabs_[kk];
+      jj = kk;
+      kk++;
+    }
+  }
+
+  if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
+    if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
+      a=1.0;
+      b+=a-1.0;
+    }
+    else{
+      a+=b-1.0;
+      b=1.0;
+    }
+  }
+  if ( a>=EPS and b<=1.0-EPS and a+b<=1.0 ){
+    if( uu_(*gen_)<b/(a+b) ){
+      a=0;
+      b+=a;
+    }
+    else{
+      a+=b;
+      b=0;
+    }
+  }
+  s_vec[ii] = a;
+  s_vec[jj] = b;
+
+  std::cout<<a<<" "<<b<<" "<< ii <<" "<< jj<<std::endl;
+
+  std::cout<<xabs_.sum()<<std::endl;
+
+  for(size_t jj=0; jj<xabs_.size(); jj++){
+    std::cout<< jj<<"\t"<< s_vec[jj] << "\t"<< xabs_[jj] << std::endl;
+    xabs_[jj] = s_vec[jj];
+  }
+
+
+
+  return 0;
+}
 
 
 
