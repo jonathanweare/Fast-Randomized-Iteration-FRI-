@@ -1845,7 +1845,8 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   // }
   // std::cout<<std::endl;
   
-  size_t nnz_large = preserve_xabs(target_nnz);
+  // size_t nnz_large = preserve_xabs(target_nnz);
+  size_t nnz_large = 0;
   assert(nnz_large<=target_nnz);
 
   // for( auto it = begin(ind_vec_); it != end(ind_vec_); it++ ){
@@ -2034,6 +2035,8 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
 
   xabs_ *= (double)target_nnz;
 
+  std::cout<<target_nnz<<std::endl;
+
   size_t ii = 0;
   size_t jj = 1;
   size_t kk = 2;
@@ -2041,10 +2044,11 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
   double EPS = 1e-6;
 
   while( kk< xabs_.size() ){
+    //std::cout<<kk<<" "<<ii<<" "<<jj<<" "<<a<<" "<<b<<" "<<xabs_[kk]<<std::endl;
     if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
       if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
-        a=1.0;
         b+=a-1.0;
+        a=1.0;
       }
       else{
         a+=b-1.0;
@@ -2053,8 +2057,8 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
     }
     if ( a>=EPS and b<=1.0-EPS and a+b<=1.0 ){
       if ( uu_(*gen_)< b/(a+b) ){
-        a=0;
         b+=a;
+        a=0;
       }
       else{
         a+=b;
@@ -2062,23 +2066,26 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
       }
     }
     if ( (a<EPS or a>1.0-EPS) and kk<xabs_.size() ){
-      s_vec[ii] = a;
+      //std::cout<<a<<" "<<b<<std::endl;
+      xabs_[ii] = a;
       a = xabs_[kk];
       ii = kk;
       kk++;
     }
     if ( (b<EPS or b>1.0-EPS) and kk<xabs_.size() ){
-      s_vec[jj]=b;
+      //std::cout<<a<<" "<<b<<std::endl;
+      xabs_[jj]=b;
       b = xabs_[kk];
       jj = kk;
       kk++;
     }
   }
 
+  std::cout<<a<<" "<<b<<std::endl;
   if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
     if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
-      a=1.0;
       b+=a-1.0;
+      a=1.0;
     }
     else{
       a+=b-1.0;
@@ -2087,27 +2094,19 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
   }
   if ( a>=EPS and b<=1.0-EPS and a+b<=1.0 ){
     if( uu_(*gen_)<b/(a+b) ){
-      a=0;
       b+=a;
+      a=0;
     }
     else{
       a+=b;
       b=0;
     }
   }
-  s_vec[ii] = a;
-  s_vec[jj] = b;
+  xabs_[ii] = a;
+  xabs_[jj] = b;
 
-  std::cout<<a<<" "<<b<<" "<< ii <<" "<< jj<<std::endl;
-
-  std::cout<<xabs_.sum()<<std::endl;
-
-  for(size_t jj=0; jj<xabs_.size(); jj++){
-    std::cout<< jj<<"\t"<< s_vec[jj] << "\t"<< xabs_[jj] << std::endl;
-    xabs_[jj] = s_vec[jj];
-  }
-
-
+  for(size_t ll=0; ll<xabs_.size(); ll++)
+    std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
 
   return 0;
 }
