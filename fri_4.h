@@ -675,10 +675,10 @@ private:
 // is assumed to be of max_size
 // at least max_nz_col_entries * x.curr_size_.
 // B is overwritten upon output.
-template <typename IdxType, typename ValType>
-inline int sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x,
-        SparseMatrix<IdxType, ValType> &B);
+template <typename IdxType, typename ValType, typename ParType>
+inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, const IdxType, const ParType),
+        const size_t max_nz_col_entries, const ParType params, const SparseVector<IdxType, ValType> &x, 
+        SparseMatrix<IdxType,ValType>& B);
 
 
 
@@ -784,180 +784,6 @@ inline void SparseMatrix<IdxType, ValType>::clear(){
 
 
 
-// Add a single SparseMatrixEntry to a sparse matrix.
-// This destroys CCS or CRS sorting but preserves heaped ordering.
-// template <typename IdxType, typename ValType>
-// inline bool SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<IdxType, ValType>& a){
-
-//   assert( curr_size_ < max_size_ );
-
-//   entries_[curr_size_] = a;
-//   curr_size_++;
-
-//   if (!is_crs_heaped_){
-//     size_t jj;
-//     for (jj=0; jj<curr_size_; jj++)
-//       crs_order_[jj] = &entries_[jj];
-
-//     std::make_heap(crs_order_.begin(), crs_order_.begin()+curr_size_, 
-//       [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebyrowidxfirst(*a,*b); });
-//   }
-//   else {
-//     crs_order_[curr_size_-1] = &entries_[curr_size_-1];
-//     std::push_heap(crs_order_.begin(), crs_order_.begin()+curr_size_, 
-//       [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebyrowidxfirst(*a,*b); });
-//   }
-
-//   if (!is_ccs_heaped_){
-//     size_t jj;
-//     for (jj=0; jj<curr_size_; jj++)
-//       ccs_order_[jj] = &entries_[jj];
-
-//     std::make_heap(ccs_order_.begin(), ccs_order_.begin()+curr_size_, 
-//       [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
-//   }
-//   else {
-//     ccs_order_[curr_size_-1] = &entries_[curr_size_-1];
-//     std::push_heap(ccs_order_.begin(), ccs_order_.begin()+curr_size_, 
-//       [&](SparseMatrixEntry<IdxType, ValType>* a, SparseMatrixEntry<IdxType, ValType>* b) { return spmatcomparebycolidxfirst(*a,*b); });
-//   }
-
-//   is_crs_sorted_ = false;
-//   is_crs_heaped_ = true;
-//   is_ccs_sorted_ = false;
-//   is_ccs_heaped_ = true;
-//   return true;
-// }
-
-
-// Add a single SparseMatrixEntry to a sparse matrix.
-// If there is already an entry in the matrix with
-// the same row and column indices, its value is updated.
-// This leaves the entries both CCS and CRS sorted.
-// template <typename IdxType, typename ValType>
-// inline void SparseMatrix<IdxType, ValType>::set_entry(const SparseMatrixEntry<IdxType, ValType>& other){
-
-//   assert( curr_size_ < max_size_ );
-
-//   if (!is_crs_sorted_)
-//     sort_crs();
-
-//   if (!is_ccs_sorted_)
-//     sort_ccs();
-
-//   // Was the sparse matrix empty?
-//   if (curr_size_ == 0){
-//     assert( n_cols_ < max_cols_);
-//     assert( n_rows_ < max_rows_);
-
-//     ccs_order_[0] = 0;
-//     crs_order_[0] = 0;
-
-//     col_heads_[0] = 0;
-//     row_heads_[0] = 0;
-
-//     entries_[0] = other;
-
-//     curr_size_++;
-//     n_cols_++;
-//     n_rows_++;
-
-//     return;
-//   }
-
-//   // Decide if it's a new entry and fix column ordering.
-
-//   bool is_new_entry;
-
-//   if ( entries_[ccs_order_[curr_size_-1]].colidx < other.colidx ){  // is this a new column with greater index than the rest?
-//     assert( n_cols_ < max_cols_);
-
-//     is_new_entry = true;
-
-//     ccs_order_[curr_size_] = curr_size_;
-
-//     col_heads_[n_cols_] = curr_size_;
-
-//     n_cols_++;
-//   }
-//   else{                                                            // entry doesn't have greater column index than the rest.
-//     std::vector<size_t>::iterator col_num, ccs_pos, it;
-
-//     col_num = std::lower_bound(col_heads_.begin(), col_heads_.begin()+n_cols_, other.colidx,
-//       [&](size_t ii, size_t jj) { return entries_[ccs_order_[ii]].colidx < entries_[ccs_order_[jj]].colidx; });
-
-//     if( entries_[ccs_order_[*col_num]].colidx > other.colidx ){  // is this a new column?
-//       assert( n_cols_ < max_cols_);
-//       is_new_entry = true;
-
-//       ccs_pos = ccs_order_.begin() + *col_num;
-
-//       std::move_backwards(col_pos, ccs_order_.begin() + curr_size_, ccs_order_.begin()+curr_size_+1);
-//       *ccs_pos = curr_size_;
-
-//       it = col_heads_.begin()+n_cols_;
-//       while ( it != col_num){
-//         *it = *(it-1) + 1;
-//         it--;
-//       }
-//       n_cols_++;
-//     }
-//     else{                                                            // this isn't a new column.
-//       assert( entries_[ccs_order_[*col_num]].colidx == other.colidx );
-
-//       size_t col_end;
-
-//       if (col_num == col_heads_.begin()+n_cols_-1)
-//         col_end = curr_size_;
-//       else
-//         col_end = *(col_num+1);
-
-//       if ( entries_[ccs_order_[col_end-1]].rowidx < other.rowidx ){   // does this entry go at the end of a column
-//         is_new_entry = true;
-
-//         ccs_pos = ccs_order_.begin()+col_end;
-
-//         if (col_end < curr_size_){
-//           std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+1);
-//           for ( it = col_num+1; it != col_heads_.begin()+n_cols_; it++)
-//             (*it)++;
-//         }
-        
-//         *ccs_pos = curr_size_;
-//       }
-//       else{                                                             // this doesn't go at the end of a column
-//         ccs_pos = std::lower_bound(ccs_order_.begin()+*col_num, ccs_order_.begin()+col_end, other.rowidx,
-//           [&](size_t ii, size_t jj) { return entries_[ii].rowidx < entries_[jj].rowidx; });
-
-//         if( entries_[*ccs_pos].rowidx == other.rowidx ){                  // does it replace an existing entry?
-//           is_new_entry=false;
-//           entries_[*ccs_pos].val = other.val
-//         }
-//         else{                                                               // it doesn't replace existing entry.
-//           is_new_entry=true;
-//           std::move_backwards(ccs_pos, ccs_order_.begin()+curr_size_,ccs_order_.begin()+curr_size_+1);
-//           *ccs_pos = curr_size_;
-          
-
-//           for ( it = col_num+1; it != col_heads_.begin()+n_cols_; it++)
-//             (*it)++;
-//         }
-//       }
-//     }
-//   }
-
-
-//   // Fix row ordering.
-
-
-//   if(is_new_entry){
-//     entries_[curr_size_] = other;
-//     curr_size_++;
-//   }
-
-//   return;
-// }
-
 
 
 // Add in a new empty column.  Does not check for whether the column is new or whether it's being
@@ -1032,30 +858,6 @@ inline void SparseMatrix<IdxType, ValType>::eject_col(const size_t col_num){
   return;
 }
 
-
-
-// template <typename IdxType, typename ValType>
-// inline void SparseMatrix<IdxType, ValType>::eject_entry(const size_t ent_num){
-
-
-
-
-
-//   if( is_ccs_sorted_ ){
-//     if( inv_ccs_order_[ent_num] % max_rowcol_nnz_ == 0 ){
-//       col_num = inv_ccs_order_[ent_num]/max_rowcol_nnz_;
-
-
-
-
-//     }
-//   }
-
-//   swap_entries(ent_num,curr_size_-1);
-//   curr_size_--;
-
-//   return 0;
-// }
 
 
 
@@ -1733,6 +1535,33 @@ inline int SparseMatrix<IdxType, ValType>::sparse_colwisemv(int (*Acolumn)(Spars
 
   return 0;
 }
+
+
+template <typename IdxType, typename ValType, typename ParType>
+inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, const IdxType, const ParType),
+        const size_t max_nz_col_entries, const ParType params, const SparseVector<IdxType, ValType> &x, SparseMatrix<IdxType,ValType>& B)
+{
+  // Check for correct size; multiplication must not overflow.
+  assert(max_nz_col_entries<=B.max_rowcol_nnz_);
+  assert(x.curr_size_ <= B.max_cols_);
+
+  B.clear();
+
+  // Make a list of all the entries in A scaled
+  // by the entry of x corresponding to the column
+  // containing the particular entry of A; these
+  // will all be added to the result.
+  SparseVector<IdxType, ValType> single_column_add(max_nz_col_entries);
+  for (size_t jj = 0; jj < x.curr_size_; jj++) {
+    Acolumn(single_colummn_add, x[jj].idx, params);
+    single_column_add *= x[jj].val;
+    B.set_col(jj,single_column_add);
+  }
+
+  return;
+}
+
+
 
 
 

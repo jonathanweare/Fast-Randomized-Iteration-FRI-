@@ -11,9 +11,7 @@ using namespace std;
 
 // A subroutine that returns the ii-th column of
 // the matrix of interest
-int Gcolumn(SparseVector<long, double> &col, const long jj){
-
-  const size_t d = 200;
+int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
   assert(d<=col.max_size_);
 
@@ -90,7 +88,8 @@ int main() {
   xtrue.curr_size_ = d;
 
   // b = (I-G)*xtrue
-  A.sparse_colwisemv(Gcolumn, d, xtrue);
+  //A.sparse_colwisemv(Gcolumn, d, xtrue);
+  sparse_colwisemv(A1column, bw, d, xtrue, A);
   A.row_sums(b);
   x = xtrue;
   sparse_axpy(-1.0,b,x);
@@ -101,7 +100,8 @@ int main() {
   y = b;
 
 	for (size_t jj=0; jj<Nit; jj++){
-    A.sparse_colwisemv(Gcolumn, d, y);
+    //A.sparse_colwisemv(Gcolumn, bw, y);
+    sparse_colwisemv(A1column, bw, d, y, A);
     A.row_sums(y);
     sparse_axpy(1.0,y,x);
   }
