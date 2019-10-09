@@ -1817,11 +1817,18 @@ using std::abs;
 // temp vector and pseudorandom number generator.
 template <typename IdxType, typename ValType, class RNG>
 inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
-  // Copy the modulus of each entry into xabs_.
+  
+  // if x already has less than target_nnz non-zero entries this 
+  // is a do nothing routine.
+  if(x.curr_size_<=target_nnz){
+    return;
+  }
+
 
   xabs_.resize(x.curr_size_);
   ind_vec_.resize(x.curr_size_);
 
+  // Copy the modulus of each entry into xabs_.
   for (size_t jj = 0; jj < ind_vec_.size(); jj++){
     ind_vec_[jj] = jj;
     xabs_[jj] = abs(x[jj].val);
@@ -1845,8 +1852,8 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   // }
   // std::cout<<std::endl;
   
-  // size_t nnz_large = preserve_xabs(target_nnz);
-  size_t nnz_large = 0;
+  size_t nnz_large = preserve_xabs(target_nnz);
+  //size_t nnz_large = 0;
   assert(nnz_large<=target_nnz);
 
   // for( auto it = begin(ind_vec_); it != end(ind_vec_); it++ ){
@@ -1875,6 +1882,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 
     // Resample the remaining entries.
     resample_piv(xabs_resample,target_nnz-nnz_large, gen_);
+    //resample_sys(xabs_resample,target_nnz-nnz_large, gen_);
 
     // compress_xabs_sys(target_nnz-nnz_large);
     // Translate the compression of the moduli vector to
@@ -1893,12 +1901,24 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   // Remove the entries set to zero.
   remove_zeros(x);
   // The vector is now compressed.
+  return;
 }
 
 // Return the indices of the sparse vector that should
 // be preserved in a compression.
 template <typename IdxType, typename ValType, class RNG>
 inline std::vector<size_t> Compressor<IdxType, ValType, RNG>::preserve(SparseVector<IdxType, ValType> &x, size_t target_nnz) {
+
+  // if x already has less than target_nnz non-zero entries this 
+  // is a do nothing routine.
+  if(x.curr_size_<=target_nnz){
+    size_t nnz_large = x.curr_size_;
+    std::vector<size_t> result(nnz_large);
+    for (size_t jj = 0; jj < ind_vec_.size(); jj++){
+      result[jj] = jj;
+    }
+    return result;
+  }
 
   xabs_.resize(x.curr_size_);
   ind_vec_.resize(x.curr_size_);
@@ -1995,19 +2015,21 @@ inline size_t resample_sys(std::valarray<double>& xabs_, size_t target_nnz, RNG*
 
   std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
 
+  xabs_ *= (double)target_nnz;
+
   size_t jj = 0;
-  double w = xabs_[0]*(double)target_nnz;
+  double w = xabs_[0];
   xabs_[0] = 0;
   double U = uu_(*gen_);
   for(size_t ii=0; ii<target_nnz; ii++ ){
     // double U = uu_(gen_);
     while( w < ii + U ){
       jj++;
-      w += xabs_[jj]*(double)target_nnz;
+      w += xabs_[jj];
       xabs_[jj] = 0;
     }
     xabs_[jj]+=1.0;
-    assert(xabs_[jj] < 2);
+    //assert(xabs_[jj] < 2);
   }
   jj++;
   while( jj < xabs_.size()){
@@ -2031,17 +2053,19 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
 
   std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
 
-  std::valarray<double> s_vec((double)0, xabs_.size());
-
   xabs_ *= (double)target_nnz;
 
-  std::cout<<target_nnz<<std::endl;
+  //std::cout<<target_nnz<<std::endl;
 
   size_t ii = 0;
   size_t jj = 1;
   size_t kk = 2;
-  double a=xabs_[0], b=xabs_[1];
+  double a=xabs_[0]-floor(xabs_[0]), b=xabs_[1]-floor(xabs_[1]);
   double EPS = 1e-6;
+
+  // for(size_t ll=0; ll<xabs_.size(); ll++)
+  //   std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
+  //std::cout <<xabs_.sum()<<std::endl;
 
   while( kk< xabs_.size() ){
     //std::cout<<kk<<" "<<ii<<" "<<jj<<" "<<a<<" "<<b<<" "<<xabs_[kk]<<std::endl;
@@ -2067,21 +2091,21 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
     }
     if ( (a<EPS or a>1.0-EPS) and kk<xabs_.size() ){
       //std::cout<<a<<" "<<b<<std::endl;
-      xabs_[ii] = a;
-      a = xabs_[kk];
+      xabs_[ii] = a + floor(xabs_[ii]);
+      a = xabs_[kk] - floor(xabs_[kk]);
       ii = kk;
       kk++;
     }
     if ( (b<EPS or b>1.0-EPS) and kk<xabs_.size() ){
       //std::cout<<a<<" "<<b<<std::endl;
-      xabs_[jj]=b;
-      b = xabs_[kk];
+      xabs_[jj]=b + floor(xabs_[jj]);
+      b = xabs_[kk] - floor(xabs_[kk]);
       jj = kk;
       kk++;
     }
   }
 
-  std::cout<<a<<" "<<b<<std::endl;
+  //std::cout<<a<<" "<<b<<std::endl;
   if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
     if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
       b+=a-1.0;
@@ -2102,11 +2126,11 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
       b=0;
     }
   }
-  xabs_[ii] = a;
-  xabs_[jj] = b;
+  xabs_[ii] = a + floor(xabs_[ii]);
+  xabs_[jj] = b + floor(xabs_[jj]);
 
-  for(size_t ll=0; ll<xabs_.size(); ll++)
-    std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
+  // for(size_t ll=0; ll<xabs_.size(); ll++)
+  //   std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
 
   return 0;
 }
