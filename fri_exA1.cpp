@@ -13,7 +13,7 @@ using namespace std;
 // the matrix of interest
 int Gcolumn(SparseVector<long, double> &col, const long jj){
 
-  const size_t d = 10;
+  const size_t d = 200;
 
   assert(d<=col.max_size_);
 
@@ -28,10 +28,10 @@ int Gcolumn(SparseVector<long, double> &col, const long jj){
 
 
 int main() {
-  size_t d = 10;         // full dimension 
-  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
-  size_t Nit = 1;      // number of iterations after burn in
-  size_t m = 1;      // compression parameter (after compression vectors have
+  size_t d = 200;         // full dimension 
+  size_t Nspls = 1<<10;      // number of independent samples of the estimator to generate
+  size_t Nit = 20;      // number of iterations after burn in
+  size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
