@@ -15,11 +15,12 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
   assert(d<=col.max_size_);
 
+  double val;
+
   for(size_t ii=0;ii<d;ii++){
-    col[ii].val = ( 1.12-0.72*((double)ii)/(double)d )*(1.12-0.72*((double)jj)/(double)d)/(double)d;
-    col[ii].idx = (long)ii;
+    val = ( 1.12-0.72*((double)ii)/(double)d )*(1.12-0.72*((double)jj)/(double)d)/(double)d;
+    col.set_entry((long)ii,val);
   }
-  col.curr_size_ = d;
 
   return 0;
 }
@@ -27,7 +28,7 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 200;         // full dimension 
-  size_t Nspls = 1<<10;      // number of independent samples of the estimator to generate
+  size_t Nspls = 1<<12;      // number of independent samples of the estimator to generate
   size_t Nit = 20;      // number of iterations after burn in
   size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
@@ -45,13 +46,10 @@ int main() {
 
   std::vector<size_t> preserve;
 
-  for(size_t jj=0;jj<2*d;jj++){
-  	bias[jj].idx = jj;
-  	bias[jj].val = 0;
+  for(size_t jj=0;jj<d;jj++){
+  	bias.set_entry((long)jj,(double)0);
   }
-  bias.curr_size_ = d;
   
-
   // Initialize a seeded random compressor.
   std::random_device rd;
   std::mt19937_64 generator;
@@ -69,30 +67,23 @@ int main() {
   // and the error in a dot product.
   double finst, ftrue, fbias=0, fvar=0;
 
-  // If you want you can build and print the whole matrix.
+  //If you want you can build and print the whole matrix.
   // for(size_t jj=0; jj<d; jj++){
-  //   x[jj].val = 1.0;
-  //   x[jj].idx = jj;
+  //   x.set_entry((long)jj,1.0);
   // }
-  // x.curr_size_ = d;
-  // A.sparse_colwisemv(Gcolumn, d, x);
-  // //A.print_ccs();
-
+  // A.sparse_colwisemv(A1column, d, bw, x, A);
+  //A.print_ccs();
 
   // The true solution vector xtrue
   for(size_t jj=0; jj<d; jj++){
-  	xtrue[jj].val = 1.0/(2.25-1.45*((double)jj)/(double)d);
-  	//x[jj].val = 1.0;
-  	xtrue[jj].idx = (long)jj;
+    xtrue.set_entry((long)jj,1.0/(2.25-1.45*((double)jj)/(double)d));
   }
-  xtrue.curr_size_ = d;
 
   // b = (I-G)*xtrue
-  //A.sparse_colwisemv(Gcolumn, d, xtrue);
-  sparse_colwisemv(A1column, bw, d, xtrue, A);
+  sparse_colwisemv(A1column, d, bw, xtrue, A);
   A.row_sums(b);
   x = xtrue;
-  sparse_axpy(-1.0,b,x);
+  x += b;
   b = x;
 
   // compute the true Neumann sum up to Nit powers of G starting from b
@@ -100,10 +91,9 @@ int main() {
   y = b;
 
 	for (size_t jj=0; jj<Nit; jj++){
-    //A.sparse_colwisemv(Gcolumn, bw, y);
-    sparse_colwisemv(A1column, bw, d, y, A);
+    sparse_colwisemv(A1column, d, bw, y, A);
     A.row_sums(y);
-    sparse_axpy(1.0,y,x);
+    x += y;
   }
   xtrue = x;
   ftrue = xtrue.sum();
@@ -117,14 +107,14 @@ int main() {
   	
   	for (size_t jj=0; jj<Nit; jj++){
   		compressor.compress(y, m);
-    	A.sparse_colwisemv(Gcolumn, d, y);
+      sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
-    	sparse_axpy(1.0,y,x);
+      x += y;
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
-  	sparse_axpy(-1.0,xtrue,x);
-  	sparse_axpy(1.0,x,bias);
+    x -= xtrue;
+    bias += x;
     finst = x.sum();
     fbias += finst;
     fvar += finst*finst;

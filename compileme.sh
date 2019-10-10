@@ -1,2 +1,2 @@
-g++ 2dIsing_public.cpp fri_public.cpp -o 2dIsing -std=c++11 -O3
+g++ fri_no_sxc.cpp -o fri -std=c++11 -O3
 

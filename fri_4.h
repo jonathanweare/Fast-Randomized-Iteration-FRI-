@@ -102,64 +102,86 @@ struct spmatcomparebycolidxfirst;
 template <typename IdxType, typename ValType>
 class SparseVector {
 public:
-  // Number of nonzero entries actually in the vector.
-  size_t curr_size_;
   // Number of nonzero entries that could be in the vector.
   // Must not change.
   const size_t max_size_;
 
   // norm() returns the sum of the current entry magnitudes.
-  ValType norm() const;
+  inline const ValType norm() const;
 
   // sum() returns the sum of the current entry values.
-  ValType sum() const;
+  inline const ValType sum() const;
 
   // Constructor taking max_size as an argument and 
   // allocating space for that many SparseEntry structs.
   SparseVector(size_t max_size);
 
+  void remove_zeros();
+
+  inline void clear();
+
+  inline const size_t size() const {return curr_size_;}
+
+  //void normalize();
+
+  inline void print_vector();
+
   // Assignment by value up to current size, leaving
   // max size & other entries unchanged.
   inline SparseVector<IdxType, ValType>& operator=(const SparseVector<IdxType, ValType> &other);
+
+  inline SparseVector<IdxType, ValType>& operator*=(const ValType alpha);
+  inline SparseVector<IdxType, ValType>& operator/=(const ValType alpha);
+  inline SparseVector<IdxType, ValType>& operator+=(const ValType alpha);
+  inline SparseVector<IdxType, ValType>& operator-=(const ValType alpha);
+
+  inline SparseVector<IdxType, ValType>& operator+=(const SparseVector<IdxType, ValType> &other);
+  inline SparseVector<IdxType, ValType>& operator-=(const SparseVector<IdxType, ValType> &other);
 
   // Accessors for the underlying vector so one can do
   // some of the normal vector manipulation, but not all.
   // Specifically, subscripting and iterator begin and end
   // are provided. Incremental queue and stack function is 
   // intentionally not provided.
-  inline SparseVectorEntry<IdxType, ValType>& operator[](const size_t idx) {return entries_[idx];}
-  inline const SparseVectorEntry<IdxType, ValType>& operator[](const size_t idx) const {return entries_[idx];}
+  //inline ValType& operator[](const size_t idx) {return entries_[idx].val;}
+  inline const SparseVectorEntry<IdxType,ValType>& operator[](const size_t idx) const {return entries_[idx];}
+  inline void set_entry(const SparseVectorEntry<IdxType,ValType>& other);
+  inline void set_entry(const IdxType idx, const ValType val);
+  inline void set_value(const size_t idx, const ValType val);
+  //inline const SparseVectorEntry<IdxType, ValType>& get_entry(const size_t idx) const {return entries_[idx];}
   typedef typename std::vector<SparseVectorEntry<IdxType, ValType>>::iterator spvec_iterator;
   inline spvec_iterator begin() {return entries_.begin();}
   inline spvec_iterator end() {return entries_.begin() + curr_size_;}
 
 private:
+  // Number of nonzero entries actually in the vector.
+  size_t curr_size_;
   // Do not allow manual resizing and pushing/popping of the entries vector.
   std::vector<SparseVectorEntry<IdxType, ValType>> entries_;
 };
 
-// Normalize a sparse vector by the sum of its entry vals.
-template <typename IdxType, typename ValType>
-inline void normalize(SparseVector<IdxType, ValType> &vec);
+// // Normalize a sparse vector by the sum of its entry vals.
+// template <typename IdxType, typename ValType>
+// inline void normalize(SparseVector<IdxType, ValType> &vec);
 
-// Remove all zero elements from a sparse vector.
-template <typename IdxType, typename ValType>
-inline void remove_zeros(SparseVector<IdxType, ValType> &vec);
+// // Remove all zero elements from a sparse vector.
+// template <typename IdxType, typename ValType>
+// inline void remove_zeros(SparseVector<IdxType, ValType> &vec);
 
 // Print a vector to cout by printing the number 
 // of nonzero entries and then printing each entry
 // as a val idx pair. 
-template <typename IdxType, typename ValType>
-inline void print_vector(SparseVector<IdxType, ValType> &vec);
+// template <typename IdxType, typename ValType>
+// inline void print_vector(SparseVector<IdxType, ValType> &vec);
 
 // Perform  y <- α x + y.
 // y must be large enough to contain 
 // all entries of x and y; no allocation
 // will be performed by this routine.
-template <typename IdxType, typename ValType>
-inline int sparse_axpy(const ValType alpha,
-         const SparseVector<IdxType, ValType> &x,
-         SparseVector<IdxType, ValType> &y);
+// template <typename IdxType, typename ValType>
+// inline int sparse_axpy(const ValType alpha,
+//          const SparseVector<IdxType, ValType> &x,
+//          SparseVector<IdxType, ValType> &y);
 
 // Perform  y <- α x + y.
 // y must be large enough to contain 
@@ -179,12 +201,12 @@ inline int sparse_axpy(const ValType alpha,
 // at least y.curr_size_ + bw x.curr_size_ if beta 
 // is nonzero, and bw x.curr_size_ otherwise.
 // y is overwritten upon output.
-template <typename IdxType, typename ValType>
-inline int sparse_gemv(ValType alpha,
-        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries,
-        const SparseVector<IdxType, ValType> &x, ValType beta,
-        SparseVector<IdxType, ValType> &y);
+// template <typename IdxType, typename ValType>
+// inline int sparse_gemv(ValType alpha,
+//         int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
+//         size_t max_nz_col_entries,
+//         const SparseVector<IdxType, ValType> &x, ValType beta,
+//         SparseVector<IdxType, ValType> &y);
 
 
 
@@ -234,9 +256,91 @@ struct spveccomparebyidx {
 // Implementation
 //---------------------------------------------------------
 
+template <typename IdxType, typename ValType>
+inline void SparseVector<IdxType, ValType>::set_entry(const SparseVectorEntry<IdxType,ValType>& other){
+
+  assert(curr_size_<max_size_);
+
+  if ( curr_size_ == 0){
+    entries_[0] = other;
+    curr_size_++;
+    return;
+  }
+
+  if( other.idx > entries_[curr_size_-1].idx){
+    entries_[curr_size_] = other;
+    curr_size_++;
+    return;
+  }
+
+  spvec_iterator pos;
+
+  pos = std::lower_bound(entries_.begin(), entries_.begin()+curr_size_, other, spveccomparebyidx());
+
+  if( (*pos).idx == other.idx ){
+    (*pos).val = other.val;
+  }
+  else{
+    std::move_backward(pos, entries_.begin()+curr_size_, entries_.begin()+curr_size_+1);
+    *pos = other;
+    curr_size_++;
+  }
+
+return;
+}
+
+template <typename IdxType, typename ValType>
+inline void SparseVector<IdxType, ValType>::set_entry(const IdxType idx, const ValType val){
+
+  assert(curr_size_<max_size_);
+
+  if ( curr_size_ == 0){
+    entries_[0].idx = idx;
+    entries_[0].val = val;
+    curr_size_++;
+    return;
+  }
+
+  if( idx > entries_[curr_size_-1].idx){
+    entries_[curr_size_].idx = idx;
+    entries_[curr_size_].val = val;
+    curr_size_++;
+    return;
+  }
+
+  spvec_iterator pos;
+
+  SparseVectorEntry<IdxType,ValType> e;
+  e.idx = idx;
+  e.val = val;
+
+  pos = std::lower_bound(entries_.begin(), entries_.begin()+curr_size_, e, spveccomparebyidx());
+
+  if( (*pos).idx == idx ){
+    (*pos).val = val;
+  }
+  else{
+    std::move_backward(pos, entries_.begin()+curr_size_, entries_.begin()+curr_size_+1);
+    *pos = e;
+    curr_size_++;
+  }
+
+return;
+}
+
+
+template <typename IdxType, typename ValType>
+inline void SparseVector<IdxType, ValType>::set_value(const size_t idx, const ValType val){
+  assert(idx<curr_size_);
+
+  entries_[idx].val = val;
+  return;
+}
+
+
   // norm() returns the sum of the magnitudes of the current entry values.
 template <typename IdxType, typename ValType>
-inline ValType SparseVector<IdxType, ValType>::norm() const {
+inline const ValType SparseVector<IdxType, ValType>::norm() const {
   ValType norm = 0;
   for (size_t i = 0; i < curr_size_; i++) {
     norm += abs(entries_[i].val);
@@ -246,7 +350,7 @@ inline ValType SparseVector<IdxType, ValType>::norm() const {
 
   // sum() returns the sum of the current entry values.
 template <typename IdxType, typename ValType>
-inline ValType SparseVector<IdxType, ValType>::sum() const {
+inline const ValType SparseVector<IdxType, ValType>::sum() const {
   ValType sum = 0;
   for (size_t i = 0; i < curr_size_; i++) {
     sum += entries_[i].val;
@@ -262,6 +366,12 @@ inline SparseVector<IdxType, ValType>::SparseVector(size_t max_size) : max_size_
   entries_ = std::vector<SparseVectorEntry<IdxType, ValType>>(max_size);
 }
 
+template <typename IdxType, typename ValType>
+inline void SparseVector<IdxType, ValType>::clear() {
+  curr_size_ = 0;
+  return;
+}
+
   // Assignment by value up to current size, leaving
   // max size & other entries unchanged.
 template <typename IdxType, typename ValType>
@@ -274,36 +384,73 @@ inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator=
   return *this;
 }
 
-// Normalize a sparse vector by the sum of its entry vals.
 template <typename IdxType, typename ValType>
-inline void normalize(SparseVector<IdxType, ValType> &vec) {
-  ValType norm = vec.norm();
-  for (size_t i = 0; i < vec.curr_size_; i++) {
-    vec[i].val /= norm;
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator*=(const ValType alpha){
+  for (size_t ii=0; ii< curr_size_; ii++ ){
+    entries_[ii].val *= alpha;
   }
+  return *this;
 }
+
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator/=(const ValType alpha){
+  assert(alpha!=0);
+  for (size_t ii=0; ii< curr_size_; ii++ ){
+    entries_[ii].val /= alpha;
+  }
+  return *this;
+}
+
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator-=(const ValType alpha){
+  for (size_t ii=0; ii< curr_size_; ii++ ){
+    entries_[ii].val -= alpha;
+  }
+  return *this;
+}
+
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator+=(const ValType alpha){
+  for (size_t ii=0; ii< curr_size_; ii++ ){
+    entries_[ii].val += alpha;
+  }
+  return *this;
+}
+
+
+
+// Normalize a sparse vector by the sum of its entry vals.
+// template <typename IdxType, typename ValType>
+// inline void SparseVector<IdxType, ValType>::normalize() {
+//   ValType norm = norm();
+//   this/=norm;
+// }
 
 // Remove all zero elements from a sparse vector.
 template <typename IdxType, typename ValType>
-inline void remove_zeros(SparseVector<IdxType, ValType> &vec) {
-  size_t nnz = 0;
-  for(size_t jj = 0; jj < vec.curr_size_; jj++){
-    if (vec[jj].val != 0){
-      vec[nnz] = vec[jj];
-      nnz++;
+inline void SparseVector<IdxType, ValType>::remove_zeros() {
+
+  size_t jj = 0;
+  while (jj<curr_size_){
+    if (entries_[jj].val == 0){
+      std::rotate(entries_.begin()+jj,entries_.begin()+jj+1,entries_.begin()+curr_size_);
+      curr_size_--;
+    }
+    else{
+      jj++;
     }
   }
-  vec.curr_size_ = nnz;
+  return;
 }
 
 // Print a vector to cout by printing the number 
 // of nonzero entries and then printing each entry
 // as a val idx pair. 
 template <typename IdxType, typename ValType>
-inline void print_vector(SparseVector<IdxType, ValType> &vec) {
-  std::cout << vec.curr_size_ << std::endl;
-  for (size_t jj = 0; jj < vec.curr_size_; jj++) {
-    std::cout << vec[jj].idx <<"\t"<<vec[jj].val << std::endl;
+inline void SparseVector<IdxType, ValType>::print_vector() {
+  std::cout << curr_size_ << std::endl;
+  for (size_t jj = 0; jj < curr_size_; jj++) {
+    std::cout << entries_[jj].idx <<"\t"<<entries_[jj].val << std::endl;
   }
   std::cout << std::endl;
 }
@@ -369,32 +516,95 @@ inline void print_vector(SparseVector<IdxType, ValType> &vec) {
 //   return 0;
 // }
 
+
+
 // Perform  y <- α x + y.
 // y must be large enough to contain 
 // all entries of x and y; no allocation
 // will be performed by this routine.
 // *** UNTESTED ****
-template <typename IdxType, typename ValType>
-inline int sparse_axpy(const ValType alpha,
-         const SparseVector<IdxType, ValType> &x,
-         SparseVector<IdxType, ValType> &y) {
-  // If alpha is not zero, then ensure the
-  // result vector y can store the entire sum.
-  if (alpha != 0) {
-    assert(x.curr_size_ + y.curr_size_ <= y.max_size_);
-  // If alpha is zero, this is a do-nothing operation.
-  // Short circuit it.
-  } else {
-    return 0;
-  }
+// template <typename IdxType, typename ValType>
+// inline int sparse_axpy(const ValType alpha,
+//          const SparseVector<IdxType, ValType> &x,
+//          SparseVector<IdxType, ValType> &y) {
+//   // If alpha is not zero, then ensure the
+//   // result vector y can store the entire sum.
+//   if (alpha != 0) {
+//     assert(x.curr_size_ + y.curr_size_ <= y.max_size_);
+//   // If alpha is zero, this is a do-nothing operation.
+//   // Short circuit it.
+//   } else {
+//     return 0;
+//   }
 
-  // Shift the entries of y to past where they could possibly
-  // reside in the new vector.
-  for (size_t jj = y.curr_size_; jj > 0; jj--)
-      y[x.curr_size_ + jj - 1] = y[jj-1];
-  // Add in entries of either x or y with smallest indices. 
-  size_t y_entries_begin = x.curr_size_;
-  size_t y_entries_end = x.curr_size_ + y.curr_size_;
+//   // Shift the entries of y to past where they could possibly
+//   // reside in the new vector.
+//   for (size_t jj = y.curr_size_; jj > 0; jj--)
+//       y[x.curr_size_ + jj - 1] = y[jj-1];
+//   // Add in entries of either x or y with smallest indices. 
+//   size_t y_entries_begin = x.curr_size_;
+//   size_t y_entries_end = x.curr_size_ + y.curr_size_;
+//   size_t n_result_entries = 0;
+//   // Move over the entries in each vector from least
+//   // index to highest, iterating on the x vector as
+//   // the driver loop and y as a following iterator.
+//   size_t jj = 0;
+//   while (jj < x.curr_size_){
+//     // If there are y entries left and the y entry has lower
+//     // index, move it in.
+//     while (y_entries_begin < y_entries_end and y[y_entries_begin].idx < x[jj].idx){
+//       y[n_result_entries] = y[y_entries_begin];
+//       y_entries_begin++;
+//       n_result_entries++;
+//       assert(1<0);
+//     }
+//     // If the x and y entries had equal index, add the x 
+//     // entry times alpha to the y entry.
+//     // std::cout<<jj<<std::endl;
+//     // std::cout <<y_entries_begin<<"\t"<<y_entries_end<<std::endl;
+//     // std::cout << x[jj].idx<<"\t"<<y[y_entries_begin].idx<<std::endl;
+//     while ((jj<x.curr_size_) and (y_entries_begin < y_entries_end) and (x[jj].idx == y[y_entries_begin].idx)){
+//       y[n_result_entries] = y[y_entries_begin];
+//       // std::cout <<jj<<"\t"<<n_result_entries<<std::endl;
+//       // std::cout<<y[n_result_entries].val<<std::endl;
+//       y[n_result_entries].val += alpha * x[jj].val;
+//       // std::cout<<alpha*x[jj].val<<std::endl;
+//       // std::cout << std::endl;
+//       jj++;
+//       y_entries_begin++;
+//       n_result_entries++;
+//     }
+//     // Otherwise, just move the x entry times alpha in. 
+//     while (jj<x.curr_size_ && y[y_entries_begin].idx > x[jj].idx){
+//       y[n_result_entries].idx = x[jj].idx;
+//       y[n_result_entries].val = alpha * x[jj].val;
+//       jj++;
+//       n_result_entries++;
+//     }
+//   }
+//   // If all x entries are handled and y entries remain, move
+//   // them all in.
+//   while (y_entries_begin < y_entries_end){
+//     y[n_result_entries] = y[y_entries_begin];
+//     y_entries_begin++;
+//     n_result_entries++;
+//   }
+//   // Now all entries are set; the new size is known.
+//   y.curr_size_ = n_result_entries;
+//   return 0;
+// }
+
+
+
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator+=(const SparseVector<IdxType, ValType>& x){
+
+  assert(x.curr_size_ + curr_size_<= max_size_);
+
+  std::vector<SparseVectorEntry<IdxType,ValType>> work(x.curr_size_+curr_size_);
+
+  size_t y_entries_begin = 0;
+  size_t y_entries_end = curr_size_;
   size_t n_result_entries = 0;
   // Move over the entries in each vector from least
   // index to highest, iterating on the x vector as
@@ -403,8 +613,8 @@ inline int sparse_axpy(const ValType alpha,
   while (jj < x.curr_size_){
     // If there are y entries left and the y entry has lower
     // index, move it in.
-    while (y_entries_begin < y_entries_end and y[y_entries_begin].idx < x[jj].idx){
-      y[n_result_entries] = y[y_entries_begin];
+    while (y_entries_begin < y_entries_end and entries_[y_entries_begin].idx < x[jj].idx){
+      work[n_result_entries] = entries_[y_entries_begin];
       y_entries_begin++;
       n_result_entries++;
       assert(1<0);
@@ -414,11 +624,11 @@ inline int sparse_axpy(const ValType alpha,
     // std::cout<<jj<<std::endl;
     // std::cout <<y_entries_begin<<"\t"<<y_entries_end<<std::endl;
     // std::cout << x[jj].idx<<"\t"<<y[y_entries_begin].idx<<std::endl;
-    while ((jj<x.curr_size_) and (y_entries_begin < y_entries_end) and (x[jj].idx == y[y_entries_begin].idx)){
-      y[n_result_entries] = y[y_entries_begin];
+    while ((jj<x.curr_size_) and (y_entries_begin < y_entries_end) and (x[jj].idx == entries_[y_entries_begin].idx)){
+      work[n_result_entries] = entries_[y_entries_begin];
       // std::cout <<jj<<"\t"<<n_result_entries<<std::endl;
       // std::cout<<y[n_result_entries].val<<std::endl;
-      y[n_result_entries].val += alpha * x[jj].val;
+      work[n_result_entries].val += x[jj].val;
       // std::cout<<alpha*x[jj].val<<std::endl;
       // std::cout << std::endl;
       jj++;
@@ -426,9 +636,9 @@ inline int sparse_axpy(const ValType alpha,
       n_result_entries++;
     }
     // Otherwise, just move the x entry times alpha in. 
-    while (jj<x.curr_size_ && y[y_entries_begin].idx > x[jj].idx){
-      y[n_result_entries].idx = x[jj].idx;
-      y[n_result_entries].val = alpha * x[jj].val;
+    while (jj<x.curr_size_ && entries_[y_entries_begin].idx > x[jj].idx){
+      work[n_result_entries].val = x[jj].val;
+      work[n_result_entries].idx = x[jj].idx;
       jj++;
       n_result_entries++;
     }
@@ -436,97 +646,86 @@ inline int sparse_axpy(const ValType alpha,
   // If all x entries are handled and y entries remain, move
   // them all in.
   while (y_entries_begin < y_entries_end){
-    y[n_result_entries] = y[y_entries_begin];
+    work[n_result_entries].val = entries_[y_entries_begin].val;
+    work[n_result_entries].idx = entries_[y_entries_begin].idx;
     y_entries_begin++;
     n_result_entries++;
   }
+
+  for(jj=0;jj<n_result_entries;jj++){
+    entries_[jj].val = work[jj].val;
+    entries_[jj].idx = work[jj].idx;
+  }
   // Now all entries are set; the new size is known.
-  y.curr_size_ = n_result_entries;
-  return 0;
+  curr_size_ = n_result_entries;
+
+  return *this;
 }
 
-// sparse_gemv computes y <-- alpha A x + beta y
-// where x and y are sparse vectors and the matrix 
-// A is specified by a routine Acolumn that returns 
-// a single column of A.  bw is an
-// upper bound on the number of non-zero entries in
-// any column of A.  y is assumed to be of max_size
-// at least y.curr_size_ + bw x.curr_size_ if beta 
-// is nonzero, and bw x.curr_size_ otherwise.
-// y is overwritten upon output.
 template <typename IdxType, typename ValType>
-inline int sparse_gemv(ValType alpha,
-        int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries,
-        const SparseVector<IdxType, ValType> &x, ValType beta,
-        SparseVector<IdxType, ValType> &y)
-{
-  // Check for correct size; multiplication must not overflow.
-  if (beta != 0) {
-    assert(y.curr_size_ + max_nz_col_entries * x.curr_size_ <= y.max_size_);
-  } else {
-    assert(max_nz_col_entries * x.curr_size_ <= y.max_size_);
-  }
+inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator-=(const SparseVector<IdxType, ValType>& x){
+  assert(x.curr_size_ + curr_size_<= max_size_);
 
-  // First find what to add to the result SparseVector
-  // from the beta multiplication.
-  size_t n_entry_adds;
-  if (beta != 0) {
-    for (size_t ii = 0; ii < y.curr_size_; ii++) {
-      y[ii].val *= beta;
-    } 
-    n_entry_adds = y.curr_size_;
-  } else {
-    n_entry_adds = 0;
-  }
+  std::vector<SparseVectorEntry<IdxType, ValType>> work(x.curr_size_+curr_size_);
 
-  // Make a list of all the entries in A scaled
-  // by the entry of x corresponding to the column
-  // containing the particular entry of A; these
-  // will all be added to the result.
-  SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
-  for (size_t jj = 0; jj < x.curr_size_; jj++) {
-    Acolumn(single_row_by_column_adds, x[jj].idx);
-    for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
-      y[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
-      y[n_entry_adds].idx = single_row_by_column_adds[ii].idx;
-      n_entry_adds++;
+  size_t y_entries_begin = 0;
+  size_t y_entries_end = curr_size_;
+  size_t n_result_entries = 0;
+  // Move over the entries in each vector from least
+  // index to highest, iterating on the x vector as
+  // the driver loop and y as a following iterator.
+  size_t jj = 0;
+  while (jj < x.curr_size_){
+    // If there are y entries left and the y entry has lower
+    // index, move it in.
+    while (y_entries_begin < y_entries_end and entries_[y_entries_begin].idx < x[jj].idx){
+      work[n_result_entries] = entries_[y_entries_begin];
+      y_entries_begin++;
+      n_result_entries++;
+      assert(1<0);
+    }
+    // If the x and y entries had equal index, add the x 
+    // entry times alpha to the y entry.
+    // std::cout<<jj<<std::endl;
+    // std::cout <<y_entries_begin<<"\t"<<y_entries_end<<std::endl;
+    // std::cout << x[jj].idx<<"\t"<<y[y_entries_begin].idx<<std::endl;
+    while ((jj<x.curr_size_) and (y_entries_begin < y_entries_end) and (x[jj].idx == entries_[y_entries_begin].idx)){
+      work[n_result_entries] = entries_[y_entries_begin];
+      // std::cout <<jj<<"\t"<<n_result_entries<<std::endl;
+      // std::cout<<y[n_result_entries].val<<std::endl;
+      work[n_result_entries].val -= x[jj].val;
+      // std::cout<<alpha*x[jj].val<<std::endl;
+      // std::cout << std::endl;
+      jj++;
+      y_entries_begin++;
+      n_result_entries++;
+    }
+    // Otherwise, just move the x entry times alpha in. 
+    while (jj<x.curr_size_ && entries_[y_entries_begin].idx > x[jj].idx){
+      work[n_result_entries].val = x[jj].val;
+      work[n_result_entries].idx = x[jj].idx;
+      jj++;
+      n_result_entries++;
     }
   }
-  y.curr_size_ = n_entry_adds;
-
-  // Now take all of those entry additions and resolve
-  // them into a single SparseVector by adding up all
-  // with the same indices.
-
-  // Sort the list of additions according to their indices
-  std::make_heap(y.begin(), y.begin() + y.curr_size_, spveccomparebyidx());
-  std::sort_heap(y.begin(), y.begin() + y.curr_size_, spveccomparebyidx());
-
-  // Sum additions corresponding to like indices,
-  // collapsing the list so the indices are unique
-  // and all additions are resolved.
-  size_t new_num_entries = 0;
-  size_t curr_entry_add = 0;
-  size_t next_entry_add = 0;
-  while (curr_entry_add < y.curr_size_) {
-    y[new_num_entries] = y[curr_entry_add];
-    next_entry_add = curr_entry_add + 1;
-    while (next_entry_add < y.curr_size_ &&
-           y[next_entry_add].idx == y[curr_entry_add].idx) {
-      y[new_num_entries].val += y[next_entry_add].val;
-      next_entry_add++;
-    }
-    curr_entry_add = next_entry_add;
-    new_num_entries++;
+  // If all x entries are handled and y entries remain, move
+  // them all in.
+  while (y_entries_begin < y_entries_end){
+    work[n_result_entries].val = entries_[y_entries_begin].val;
+    work[n_result_entries].idx = entries_[y_entries_begin].idx;
+    y_entries_begin++;
+    n_result_entries++;
   }
-  y.curr_size_ = new_num_entries;
 
-  return 0;
+  for(jj=0;jj<n_result_entries;jj++){
+    entries_[jj].val = work[jj].val;
+    entries_[jj].idx = work[jj].idx;
+  }
+  // Now all entries are set; the new size is known.
+  curr_size_ = n_result_entries;
+
+  return *this;
 }
-
-
-
 
 
 
@@ -551,14 +750,10 @@ inline int sparse_gemv(ValType alpha,
 template <typename IdxType, typename ValType>
 class SparseMatrix {
 public:
-  // Number of nonzero entries actually in the vector.
-  size_t curr_size_;
+  
   // Number of nonzero entries that could be in the vector.
   // Must not change.
   const size_t max_size_;
-
-  // Number of rows and columns.
-  size_t n_rows_, n_cols_;
 
   // Max number of rows and columns.
   const size_t max_cols_, max_rowcol_nnz_;
@@ -578,6 +773,12 @@ public:
   // Index reordering to Compressed Column Storage (CCS)
   inline void sort_ccs();
   inline const bool check_ccs_sorted() const {return is_ccs_sorted_;}
+
+  inline const size_t size() const {return curr_size_;}
+
+  inline const size_t ncols() const {return n_cols_;}
+
+  inline const size_t nrows() const {return n_rows_;} 
 
   // Reset matrix without deallocating space.
   inline void clear();
@@ -627,9 +828,6 @@ public:
   inline void print_ccs();
   inline void print_crs();
 
-  inline int sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-    size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x);
-
   // Accessors for the underlying vector so one can do
   // some of the normal vector manipulation, but not all.
   // Specifically, subscripting and iterator begin and end
@@ -637,12 +835,17 @@ public:
   // intentionally not provided.
   //inline size_t ccs_lower_bound(const IdxType rowidx, const IdxType colidx);
   //inline void set_entry(const SparseMatrixEntry<IdxType, ValType>& a, const size_t idx);
-  inline const SparseMatrixEntry<IdxType, ValType>& get_entry(const size_t idx) const {return entries_[idx];}
+  inline const SparseMatrixEntry<IdxType,ValType>& operator[](const size_t idx) const {return entries_[idx];}
+  //inline const SparseMatrixEntry<IdxType, ValType>& get_entry(const size_t idx) const {return entries_[idx];}
   typedef typename std::vector<SparseMatrixEntry<IdxType, ValType>>::iterator spmat_iterator;
   inline spmat_iterator begin() {return entries_.begin();}
   inline spmat_iterator end() {return entries_.begin() + curr_size_;}
 
 private:
+  // Number of nonzero entries actually in the vector.
+  size_t curr_size_;
+  // Number of rows and columns.
+  size_t n_rows_, n_cols_;
   // Do not allow manual pushing/popping of the entries 
   // or anything else that is not ordering safe.
   std::vector<SparseMatrixEntry<IdxType, ValType>> entries_;
@@ -677,7 +880,7 @@ private:
 // B is overwritten upon output.
 template <typename IdxType, typename ValType, typename ParType>
 inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, const IdxType, const ParType),
-        const size_t max_nz_col_entries, const ParType params, const SparseVector<IdxType, ValType> &x, 
+        const ParType params, const size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x, 
         SparseMatrix<IdxType,ValType>& B);
 
 
@@ -872,16 +1075,18 @@ inline void SparseMatrix<IdxType, ValType>::fill_col(const size_t col_num, const
 
   size_t col_head = col_num*max_rowcol_nnz_;;
 
-  for (size_t jj=0; jj<other.curr_size_;jj++){
+  for (size_t jj=0; jj<other.size(); jj++){
     entries_[curr_size_+jj].colidx = idx;
     entries_[curr_size_+jj].rowidx = other[jj].idx;
     entries_[curr_size_+jj].val = other[jj].val;
+    // entries_[curr_size_+jj].rowidx = other[jj].idx;
+    // entries_[curr_size_+jj].val = other[jj].val;
   }
 
-  col_ends_[col_num] = col_head+other.curr_size_;
+  col_ends_[col_num] = col_head+other.size();
 
   std::iota(ccs_order_.begin()+col_head,ccs_order_.begin()+col_ends_[col_num],curr_size_);
-  std::iota(inv_ccs_order_.begin()+curr_size_,inv_ccs_order_.begin()+curr_size_+other.curr_size_,col_head);
+  std::iota(inv_ccs_order_.begin()+curr_size_,inv_ccs_order_.begin()+curr_size_+other.size(),col_head);
 
   // std::cout<<"in fill"<<std::endl;
   // std::cout << col_num <<"\t" <<col_head << std::endl;
@@ -895,7 +1100,7 @@ inline void SparseMatrix<IdxType, ValType>::fill_col(const size_t col_num, const
   // }
   // std::cout<<"out fill"<< std::endl;
 
-  curr_size_ += other.curr_size_;
+  curr_size_ += other.size();
 
   is_crs_sorted_ = false;
 
@@ -1121,10 +1326,10 @@ inline size_t SparseMatrix<IdxType, ValType>::locate_entry_crs(const IdxType row
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, ValType>& other, const IdxType idx){
 
-  assert( other.curr_size_<=max_rowcol_nnz_);
-  assert( curr_size_+other.curr_size_<=max_size_);
+  assert( other.size()<=max_rowcol_nnz_);
+  assert( curr_size_+other.size()<=max_size_);
   assert( n_cols_<max_cols_);
-  assert( n_rows_+other.curr_size_<=max_size_);
+  assert( n_rows_+other.size()<=max_size_);
 
   size_t col_num;
 
@@ -1138,12 +1343,12 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
     inject_col(col_num);
     fill_col(col_num,idx,other);
 
-    for(size_t jj=0; jj<other.curr_size_; jj++ ){          // because it's the first column we preserve row ordering too
+    for(size_t jj=0; jj<other.size(); jj++ ){          // because it's the first column we preserve row ordering too
       crs_order_[row_ends_[jj]] = jj;
       inv_crs_order_[jj] = row_ends_[jj];
       row_ends_[jj]++;
     }
-    n_rows_ = other.curr_size_;
+    n_rows_ = other.size();
     is_crs_sorted_ = true;
 
     return;
@@ -1162,33 +1367,13 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
     col_num = locate_col(idx);
     assert(col_num<n_cols_);
 
-    //std::cout<<col_num<<std::endl;
-
     col_head = col_num*max_rowcol_nnz_;
     assert(col_head<col_ends_[col_num]);
 
-    // std::cout << "in" << std::endl;
-    // std::cout << entries_[ccs_order_[n_cols_*max_rowcol_nnz_]].colidx << std::endl;
-    // std::cout << idx << "\t"<<n_cols_ << "\t"<< *col_id <<"\t"<<col_num << "\t" <<col_head << std::endl;
-    // std::cout << std::endl;
-    // for(size_t jj=0;jj<n_cols_;jj++){
-    //   std::cout<<jj<<"\t"<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj]-1]].colidx <<std::endl;
-    // }   
-    // std::cout << col_head << "\t" << entries_[ccs_order_[col_head]].colidx << std::endl;
-    // std::cout << std::endl;
-
     if (entries_[ccs_order_[col_head]].colidx == idx){                 // this replaces an existing column
-      // std::cout<<col_num<<std::endl;
       clear_col(col_num);
     }
     else{                                                                     // this column is new
-      // std::cout<< (entries_[ccs_order_[*col_id-1]].colidx < idx) << std::endl;
-      // std::cout<<idx<<std::endl;
-      // for(size_t jj=0;jj<n_cols_;jj++){
-      //   std::cout<<col_ends_[jj]<<"\t"<< entries_[ccs_order_[col_ends_[jj]-1]].colidx <<std::endl;
-      // }                                                         
-      // std::cout<<*col_id<<col_num<<std::endl;
-      // std::cout<<std::endl;
       inject_col(col_num);
     }
 
@@ -1224,17 +1409,12 @@ inline void SparseMatrix<IdxType, ValType>::sort_crs(){
 
   n_rows_ = 1;
   for (size_t jj=1; jj<curr_size_;jj++){
-    //std::cout<<jj<<"\t"<<entries_[crs_order_[jj]].rowidx <<"\t"<< entries_[crs_order_[jj-1]].rowidx<<std::endl;
     if ( entries_[crs_order_[jj]].rowidx > entries_[crs_order_[jj-1]].rowidx ){
       row_ends_[n_rows_-1] = jj;
       n_rows_++; 
     }
   }
   row_ends_[n_rows_-1] = curr_size_;
-
-  // for (size_t jj=0;jj<n_rows_;jj++)
-  //   std::cout<<row_ends_[jj]<<std::endl;
-  // std::cout<<std::endl;
 
   size_t row_len;
 
@@ -1277,19 +1457,12 @@ inline void SparseMatrix<IdxType, ValType>::sort_ccs(){
 
   n_cols_ = 1;
   for (size_t jj=1; jj<curr_size_;jj++){
-    //std::cout<<jj<<"\t"<<entries_[ccs_order_[jj]].colidx <<"\t"<< entries_[ccs_order_[jj-1]].colidx<<std::endl;
     if ( entries_[ccs_order_[jj]].colidx > entries_[ccs_order_[jj-1]].colidx ){
       col_ends_[n_cols_-1] = jj;
       n_cols_++; 
     }
   }
   col_ends_[n_cols_-1] = curr_size_;
-
-  // std::cout<<n_cols_<<std::endl;
-
-  // for (size_t jj=0;jj<n_cols_;jj++)
-  //   std::cout<<col_ends_[jj]<<std::endl;
-  // std::cout<<std::endl;
 
   size_t col_len;
 
@@ -1365,15 +1538,18 @@ inline void SparseMatrix<IdxType, ValType>::row_sums(SparseVector<IdxType, ValTy
   if(!is_crs_sorted_)
     sort_crs();
 
+  SparseVectorEntry<IdxType,ValType> e;
+
+  y.clear();
+
   for( size_t ii = 0; ii<n_rows_; ii++){
-    y[ii].val = entries_[crs_order_[ii*max_rowcol_nnz_]].val;
-    y[ii].idx = entries_[crs_order_[ii*max_rowcol_nnz_]].rowidx;
+    e.val = entries_[crs_order_[ii*max_rowcol_nnz_]].val;
+    e.idx = entries_[crs_order_[ii*max_rowcol_nnz_]].rowidx;
+    y.set_entry(e);
     for( size_t jj = ii*max_rowcol_nnz_+1; jj<row_ends_[ii]; jj++){
-      y[ii].val += entries_[crs_order_[jj]].val;
+      y.set_value(ii,y[ii].val+entries_[crs_order_[jj]].val);
     }
   }
-
-  y.curr_size_ = n_rows_;
 
   return;
 }
@@ -1386,15 +1562,18 @@ inline void SparseMatrix<IdxType, ValType>::col_sums(SparseVector<IdxType, ValTy
   if(!is_ccs_sorted_)
     sort_ccs();
 
+  SparseVectorEntry<IdxType,ValType> e;
+
+  y.clear();
+
   for( size_t jj = 0; jj<n_cols_; jj++){
-    y[jj].val = entries_[ccs_order_[jj*max_rowcol_nnz_]].val;
-    y[jj].idx = entries_[ccs_order_[jj*max_rowcol_nnz_]].colidx;
+    e.val = entries_[ccs_order_[jj*max_rowcol_nnz_]].val;
+    e.idx = entries_[ccs_order_[jj*max_rowcol_nnz_]].colidx;
+    y.set_entry(e);
     for( size_t ii = jj*max_rowcol_nnz_+1; ii<col_ends_[jj]; ii++){
-      y[jj].val += entries_[ccs_order_[ii]].val;
+      y[jj] += entries_[ccs_order_[ii]].val;
     }
   }
-
-  y.curr_size_ = n_cols_;
 
   return;
 }
@@ -1500,50 +1679,13 @@ inline void SparseMatrix<IdxType, ValType>::print_crs() {
 // is assumed to be of max_size
 // at least max_nz_col_entries * x.curr_size_.
 // B is overwritten upon output.
-template <typename IdxType, typename ValType>
-inline int SparseMatrix<IdxType, ValType>::sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType> &col, const IdxType jj),
-        size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x)
-{
-  // Check for correct size; multiplication must not overflow.
-  assert(max_nz_col_entries<=max_rowcol_nnz_);
-  assert(x.curr_size_ <= max_cols_);
-
-  // Make a list of all the entries in A scaled
-  // by the entry of x corresponding to the column
-  // containing the particular entry of A; these
-  // will all be added to the result.
-  size_t n_entry_adds=0;
-  SparseVector<IdxType, ValType> single_row_by_column_adds(max_nz_col_entries);
-  for (size_t jj = 0; jj < x.curr_size_; jj++) {
-    Acolumn(single_row_by_column_adds, x[jj].idx);
-    for(size_t ii = 0; ii < single_row_by_column_adds.curr_size_; ii++){
-      entries_[n_entry_adds].val = x[jj].val * single_row_by_column_adds[ii].val;
-      entries_[n_entry_adds].rowidx = single_row_by_column_adds[ii].idx;
-      entries_[n_entry_adds].colidx = x[jj].idx;
-      ccs_order_[jj*max_rowcol_nnz_+ii]=n_entry_adds;
-      inv_ccs_order_[n_entry_adds] = jj*max_rowcol_nnz_+ii;
-      n_entry_adds++;
-    }
-    col_ends_[jj] = jj*max_rowcol_nnz_ + single_row_by_column_adds.curr_size_;
-  }
-  curr_size_ = n_entry_adds;
-
-  n_cols_ = x.curr_size_;
-
-  is_ccs_sorted_ = true;
-  is_crs_sorted_ = false;
-
-  return 0;
-}
-
-
 template <typename IdxType, typename ValType, typename ParType>
 inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, const IdxType, const ParType),
-        const size_t max_nz_col_entries, const ParType params, const SparseVector<IdxType, ValType> &x, SparseMatrix<IdxType,ValType>& B)
+        const ParType params, const size_t max_nz_col_entries, const SparseVector<IdxType, ValType> &x, SparseMatrix<IdxType,ValType>& B)
 {
   // Check for correct size; multiplication must not overflow.
   assert(max_nz_col_entries<=B.max_rowcol_nnz_);
-  assert(x.curr_size_ <= B.max_cols_);
+  assert(x.size() <= B.max_cols_);
 
   B.clear();
 
@@ -1552,10 +1694,11 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
   // containing the particular entry of A; these
   // will all be added to the result.
   SparseVector<IdxType, ValType> single_column_add(max_nz_col_entries);
-  for (size_t jj = 0; jj < x.curr_size_; jj++) {
-    Acolumn(single_colummn_add, x[jj].idx, params);
+  for (size_t jj = 0; jj < x.size(); jj++) {
+    single_column_add.clear();
+    Acolumn(single_column_add, x[jj].idx, params);
     single_column_add *= x[jj].val;
-    B.set_col(jj,single_column_add);
+    B.set_col(single_column_add,jj);
   }
 
   return;
@@ -1649,13 +1792,13 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   
   // if x already has less than target_nnz non-zero entries this 
   // is a do nothing routine.
-  if(x.curr_size_<=target_nnz){
+  if(x.size()<=target_nnz){
     return;
   }
 
 
-  xabs_.resize(x.curr_size_);
-  ind_vec_.resize(x.curr_size_);
+  xabs_.resize(x.size());
+  ind_vec_.resize(x.size());
 
   // Copy the modulus of each entry into xabs_.
   for (size_t jj = 0; jj < ind_vec_.size(); jj++){
@@ -1676,19 +1819,9 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   }
   xabs_sum = xabs_.sum();
 
-  // for( auto it = begin(ind_vec_); it != end(ind_vec_); it++ ){
-  //   std::cout << *it << "\t" << xabs_[*it] << std::endl;
-  // }
-  // std::cout<<std::endl;
-  
   size_t nnz_large = preserve_xabs(target_nnz);
   //size_t nnz_large = 0;
   assert(nnz_large<=target_nnz);
-
-  // for( auto it = begin(ind_vec_); it != end(ind_vec_); it++ ){
-  //   std::cout << *it <<  "\t" << xabs_[*it] <<std::endl;
-  // }
-  // std::cout<<std::endl;
 
   if (nnz_large < target_nnz){
     size_t nnz_small = xabs_.size()-nnz_large;
@@ -1698,7 +1831,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
     for( size_t jj = nnz_small; jj < ind_vec_.size(); jj++ ){
       ii = ind_vec_[jj];
       assert(x[ii].val != 0);
-      x[ii].val = (x[ii].val / abs(x[ii].val))*xabs_[ii];
+      x.set_value(ii, (x[ii].val / abs(x[ii].val))*xabs_[ii]);
     }
 
     //std::cout<<nnz_small<<std::endl;
@@ -1723,12 +1856,12 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
       // of xabs.
       //std::cout<< ind_resample[jj] <<"\t"<< x[ind_resample[jj]].val << std::endl;
       assert(x[ind_resample[jj]].val != 0);
-      x[ind_resample[jj]].val = (x[ind_resample[jj]].val / abs(x[ind_resample[jj]].val)) 
-        * xabs_resample[jj] * xabs_sum/(double)(target_nnz-nnz_large);
+      x.set_value(ind_resample[jj],(x[ind_resample[jj]].val / abs(x[ind_resample[jj]].val)) 
+        * xabs_resample[jj] * xabs_sum/(double)(target_nnz-nnz_large));
     }
   }
   // Remove the entries set to zero.
-  remove_zeros(x);
+  x.remove_zeros();
   // The vector is now compressed.
   return;
 }
@@ -1754,8 +1887,8 @@ inline std::vector<size_t> Compressor<IdxType, ValType, RNG>::preserve(SparseVec
 
   for (size_t jj = 0; jj < ind_vec_.size(); jj++){
     ind_vec_[jj] = jj;
-    xabs_[jj] = abs(x[jj].val);
-    if( x[jj].val==0){
+    xabs_[jj] = abs(x[jj]);
+    if( x[jj]==0){
       std::cout << jj << std::endl;
     }
   }
@@ -1957,9 +2090,6 @@ inline size_t resample_piv(std::valarray<double>& xabs_, size_t target_nnz, RNG*
   }
   xabs_[ii] = a + floor(xabs_[ii]);
   xabs_[jj] = b + floor(xabs_[jj]);
-
-  // for(size_t ll=0; ll<xabs_.size(); ll++)
-  //   std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
 
   return 0;
 }
