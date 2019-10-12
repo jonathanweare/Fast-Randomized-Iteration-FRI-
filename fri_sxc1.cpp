@@ -27,10 +27,10 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 200;         // full dimension 
-  size_t Nspls = 300;      // number of independent samples of the estimator to generate
-  size_t Nit = 29;      // number of iterations after burn in
-  size_t m = 50;      // compression parameter (after compression vectors have
+  size_t d = 3;         // full dimension 
+  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
+  size_t Nit = 1;      // number of iterations after burn in
+  size_t m = 1;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
@@ -41,10 +41,11 @@ int main() {
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
   SparseVector<long, double> y(d);
+  SparseVector<long, double> z(d);
   SparseVector<long, double> x(2*d);
   SparseVector<long, double> bias(2*d);
 
-  std::vector<size_t> preserve;
+  std::vector<bool> preserve;
 
   for(size_t jj=0;jj<d;jj++){
   	bias.set_entry((long)jj,(double)0);
@@ -105,11 +106,36 @@ int main() {
   	x = b;
   	y = b;
   	
+    compressor.compress(y, m);
   	for (size_t jj=0; jj<Nit; jj++){
-  		compressor.compress(y, m);
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
+
+      preserve = compressor.preserve(y, m);
+      for (size_t ii=0; ii<y.size(); ii++){
+        if( preserve[ii]==false ){
+          size_t nummax =0;
+          double valmax = abs((A.get_row_entry(ii,0)).val);
+          for (size_t kk=1; kk<A.row_size(ii); kk++){
+            if ( abs((A.get_row_entry(ii,kk)).val)>valmax ){
+              A.set_row_value(ii,nummax,0);
+              valmax = abs((A.get_row_entry(ii,0)).val);
+              nummax = kk;
+            }
+            else{
+              A.set_row_value(ii,kk,0);
+            }
+          }
+          A.set_row_value(ii,nummax,y[ii].val);
+        }
+      }
+      // for (size_t ii=0; ii<y.size(); ii++){
+      //   if( preserve[ii]==true ){
+      //     A.eject_row(ii);
+      //   }
+      // }
+      compressor.compress(y, m);
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
