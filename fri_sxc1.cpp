@@ -27,10 +27,10 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 3;         // full dimension 
+  size_t d = 10;         // full dimension 
   size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
   size_t Nit = 1;      // number of iterations after burn in
-  size_t m = 1;      // compression parameter (after compression vectors have
+  size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
@@ -45,7 +45,9 @@ int main() {
   SparseVector<long, double> x(2*d);
   SparseVector<long, double> bias(2*d);
 
-  std::vector<bool> preserve;
+  std::vector<bool> preserve(d);
+  SparseVector<long, double> col_norms(m);
+  std::valarray<double> col_norms_valarray(m);
 
   for(size_t jj=0;jj<d;jj++){
   	bias.set_entry((long)jj,(double)0);
@@ -112,8 +114,11 @@ int main() {
     	A.row_sums(y);
       x += y;
 
-      preserve = compressor.preserve(y, m);
+      A.print_ccs();
+      compressor.preserve(y, m, preserve);
+
       for (size_t ii=0; ii<y.size(); ii++){
+        //std::cout<< ii<<" "<<preserve[ii]<<std::endl;
         if( preserve[ii]==false ){
           size_t nummax =0;
           double valmax = abs((A.get_row_entry(ii,0)).val);
@@ -128,8 +133,27 @@ int main() {
             }
           }
           A.set_row_value(ii,nummax,y[ii].val);
+          y.set_value(ii,0);
+        }
+        else{
+          for (size_t kk=0; kk<A.row_size(ii); kk++){
+            A.set_row_value(ii,kk,0);
+          }
         }
       }
+      A.print_ccs();
+      y.print();
+
+      A.col_norms(col_norms);
+      compressor.resample(col_norms,m);
+
+      for(size_t ii=0; ii<A.ncols(); ii++){
+        A.get_col(ii,z);
+        compressor.compress(z,col_norms[ii].val);
+        A.set_col(z);
+      }
+      A.row_sums(z);
+      
       // for (size_t ii=0; ii<y.size(); ii++){
       //   if( preserve[ii]==true ){
       //     A.eject_row(ii);
