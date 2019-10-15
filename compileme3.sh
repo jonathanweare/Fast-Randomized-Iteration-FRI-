@@ -1,1 +1,0 @@
-g++ fri_linear_solve_driver.cpp -o fri_ls -std=c++11 -O3
