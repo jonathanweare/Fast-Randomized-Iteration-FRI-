@@ -28,8 +28,8 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 5;         // full dimension 
-  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
-  size_t Nit = 2;      // number of iterations after burn in
+  size_t Nspls = 1<<14;      // number of independent samples of the estimator to generate
+  size_t Nit = 20;      // number of iterations after burn in
   size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
@@ -46,6 +46,7 @@ int main() {
   SparseVector<long, double> bias(2*d);
 
   std::vector<bool> preserve(d);
+  size_t npres;
   SparseVector<long, double> col_norms(m);
   std::valarray<double> col_budgets(m);
 
@@ -112,12 +113,12 @@ int main() {
     compressor.compress(y, m);
 
   	for (size_t jj=0; jj<Nit; jj++){
-      std::cout<<y.size()<<std::endl;
+      // std::cout<<y.size()<<std::endl;
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
 
-      std::cout << compressor.preserve(y, m, preserve) <<std::endl;
+      npres = compressor.preserve(y, m, preserve);
 
       for (size_t ii=0; ii<y.size(); ii++){
         //std::cout<< ii<<" "<<preserve[ii]<<std::endl;
@@ -143,7 +144,7 @@ int main() {
           }
         }
       }
-      A.print_ccs();
+      //A.print_ccs();
       // y.print();
 
       y.remove_zeros();
@@ -154,10 +155,12 @@ int main() {
       for(size_t ii=0; ii<m; ii++){
         col_budgets[ii] = col_norms[ii].val;
       }
-      resample_piv(col_budgets, m, &generator);
+      resample_piv(col_budgets, m-npres, &generator);
+
+      //compressor.compress(A, col_budgets);
 
       for(size_t ii=0; ii<A.ncols(); ii++){
-        std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
+        // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
         if( col_budgets[ii]>0 ){
           A.get_col(ii,z);
           compressor.compress(z,(size_t)col_budgets[ii]);
@@ -165,15 +168,15 @@ int main() {
         }
       }
 
-      A.print_ccs();
+      //A.print_ccs();
       A.row_sums(z);
       z.remove_zeros();
-      z.print();
-      y.print();
+      //z.print();
+      //y.print();
 
       y+=z;
 
-      y.print();
+      //y.print();
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
