@@ -147,7 +147,7 @@ public:
   inline const SparseVectorEntry<IdxType,ValType>& operator[](const size_t idx) const {return entries_[idx];}
   inline void set_entry(const SparseVectorEntry<IdxType,ValType>& other);
   inline void set_entry(const IdxType idx, const ValType val);
-  inline void set_value(const size_t idx, const ValType val);
+  inline void set_value(const size_t ent_num, const ValType val);
   //inline const SparseVectorEntry<IdxType, ValType>& get_entry(const size_t idx) const {return entries_[idx];}
   typedef typename std::vector<SparseVectorEntry<IdxType, ValType>>::iterator spvec_iterator;
   inline spvec_iterator begin() {return entries_.begin();}
@@ -463,7 +463,7 @@ inline void SparseVector<IdxType, ValType>::remove_zeros() {
 // as a val idx pair. 
 template <typename IdxType, typename ValType>
 inline void SparseVector<IdxType, ValType>::print() {
-  std::cout << curr_size_ << std::endl;
+  std::cout << "entries: "<< curr_size_ << std::endl;
   for (size_t jj = 0; jj < curr_size_; jj++) {
     std::cout << entries_[jj].idx <<"\t"<<entries_[jj].val << std::endl;
   }
@@ -617,6 +617,11 @@ inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator+
 
   assert(x.curr_size_ + curr_size_<= max_size_);
 
+  if( curr_size_==0 ){
+    *this = x;
+    return *this;
+  }
+
   std::vector<SparseVectorEntry<IdxType,ValType>> work(x.curr_size_+curr_size_);
 
   size_t y_entries_begin = 0;
@@ -637,16 +642,9 @@ inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator+
     }
     // If the x and y entries had equal index, add the x 
     // entry times alpha to the y entry.
-    // std::cout<<jj<<std::endl;
-    // std::cout <<y_entries_begin<<"\t"<<y_entries_end<<std::endl;
-    // std::cout << x[jj].idx<<"\t"<<y[y_entries_begin].idx<<std::endl;
     while ((jj<x.curr_size_) and (y_entries_begin < y_entries_end) and (x[jj].idx == entries_[y_entries_begin].idx)){
       work[n_result_entries] = entries_[y_entries_begin];
-      // std::cout <<jj<<"\t"<<n_result_entries<<std::endl;
-      // std::cout<<y[n_result_entries].val<<std::endl;
       work[n_result_entries].val += x[jj].val;
-      // std::cout<<alpha*x[jj].val<<std::endl;
-      // std::cout << std::endl;
       jj++;
       y_entries_begin++;
       n_result_entries++;
@@ -826,13 +824,13 @@ public:
   inline void col_sums(SparseVector<IdxType,ValType>& other);
 
   // Compute column norms and output in sparse vector.
-  inline void col_norms(SparseVector<IdxType,ValType>& other, size_t p);
+  inline void col_norms(SparseVector<IdxType,ValType>& other);
 
   // Compute row sums and output in sparse vector.
   inline void row_sums(SparseVector<IdxType,ValType>& other);
 
   // Compute row norms and output in sparse vector.
-  inline void row_norms(SparseVector<IdxType,ValType>& other, size_t p);
+  inline void row_norms(SparseVector<IdxType,ValType>& other);
 
   inline size_t locate_col(const IdxType idx);
 
@@ -1639,12 +1637,14 @@ inline void SparseMatrix<IdxType, ValType>::get_col(const size_t col_num, Sparse
   size_t col_head = col_num*max_rowcol_nnz_;
 
   assert( y.max_size_ >= col_ends_[col_num] - col_head );
-  y.curr_size_ = col_ends_[col_num] - col_head;
+
+  y.clear();
 
   for (size_t jj=col_head; jj<col_ends_[col_num]; jj++){
-    y[jj-col_head].idx = entries_[ccs_order_[jj]].rowidx;
-    y[jj-col_head].val = entries_[ccs_order_[jj]].val;
+    y.set_entry(entries_[ccs_order_[jj]].rowidx,entries_[ccs_order_[jj]].val);
   }
+
+  assert(y.size()==col_ends_[col_num] - col_head);
 
   return;
 }
@@ -1731,13 +1731,11 @@ inline void SparseMatrix<IdxType, ValType>::col_norms(SparseVector<IdxType, ValT
   y.clear();
 
   for( size_t jj = 0; jj<n_cols_; jj++){
-    e.val = entries_[ccs_order_[jj*max_rowcol_nnz_]].val;
+    e.val = abs(entries_[ccs_order_[jj*max_rowcol_nnz_]].val);
     e.idx = entries_[ccs_order_[jj*max_rowcol_nnz_]].colidx;
-    y.set_index(jj,e.idx);
-    y.set_value(jj,e.val);
-    y
+    y.set_entry(e);
     for( size_t ii = jj*max_rowcol_nnz_+1; ii<col_ends_[jj]; ii++){
-      y[jj] += abs(entries_[ccs_order_[ii]].val);
+      y.set_value(jj,y[jj].val+abs(entries_[ccs_order_[ii]].val));
     }
   }
 
@@ -1895,7 +1893,7 @@ class Compressor {
 private:
   
   // Temporary storage for an intermediate.
-  std::valarray<size_t> ind_vec_;
+  std::valarray<size_t> inds_;
   std::valarray<double> xabs_;
   
   // Random number generator.
@@ -1914,11 +1912,13 @@ private:
   // inline void compress_xabs_sys(size_t target_nnz);
   // inline void compress_xabs_dmc(size_t target_nnz);
 
+  inline size_t setup(SparseVector<IdxType, ValType> &x);
+
 public:
 
   // Constructor based on maximum size of the
   // modulus vector and a random seed.
-  inline Compressor<IdxType, ValType, RNG>(size_t max_size, RNG& generator) : 
+  inline Compressor<IdxType, ValType, RNG>(size_t max_size, RNG& generator) : inds_(max_size),
     xabs_(max_size) {
     // Set up the pseudorandom number generator.
     gen_ = &generator;
@@ -1933,8 +1933,7 @@ public:
 
   // Return a mask of the sparse vector indicating which entries should
   // be preserved exactly in a compression.
-  inline void preserve(const SparseVector<IdxType, ValType> &x, const size_t target_nnz, 
-    std::vector<bool>& bools);
+  inline const size_t preserve(SparseVector<IdxType, ValType> &x, const size_t target_nnz, std::vector<bool>& bools);
 };
 
 
@@ -1954,6 +1953,32 @@ inline size_t resample_piv(std::valarray<double>& xabs_,const size_t target_nnz,
 
 using std::abs;
 
+
+template <typename IdxType, typename ValType, class RNG>
+inline size_t Compressor<IdxType, ValType, RNG>::setup(SparseVector<IdxType, ValType> &x) {
+
+  xabs_.resize(x.size());
+  inds_.resize(x.size());
+
+  double temp, Tol = 1e-12;
+  size_t nnz;
+
+  for(size_t jj=0;jj<x.size();jj++){
+    temp = abs(x[jj].val);
+    if( temp>Tol ){
+      xabs_[jj]=temp;
+      nnz++;
+    }
+    else{
+      x.set_value(jj,0);
+      xabs_[jj]=0;
+    }
+    inds_[jj] = jj;
+  }
+
+  return nnz;
+}
+
 // Compress a SparseVector using the stored
 // temp vector and pseudorandom number generator.
 template <typename IdxType, typename ValType, class RNG>
@@ -1965,65 +1990,29 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
     return;
   }
 
-  double Tol = 1e-12;
-  size_t nnz = 0;
+  size_t nnz = setup(x);
 
-  // Get rid of tiny entries.
-  for (size_t jj = 0; jj < x.size(); jj++){
-    if (abs(x[jj].val)<=Tol){
-      x.set_value(jj,0);
-    }
-    else{
-      nnz++;
-    }
-  }
-
-  if (nnz<=target_nnz){
+  if(nnz<=target_nnz){
     x.remove_zeros();
+    assert(x.size()==nnz);
     return;
   }
 
-  xabs_.resize(nnz);
-  ind_vec_.resize(nnz);
-
-  // Copy the modulus of each entry into xabs_.
-  nnz = 0;
-  for (size_t jj = 0; jj < x.size(); jj++) {
-    if ( x[jj].val != 0 ){
-      xabs_[nnz] = abs(x[jj].val);
-      ind_vec_[nnz] = jj;
-      nnz++;
-    }
-  }
-  double xabs_sum = xabs_.sum();
-
-  assert(nnz==xabs_.size());
-
   size_t nnz_large = preserve_xabs(target_nnz);
+
   //size_t nnz_large = 0;
   assert(nnz_large<target_nnz);
 
-  size_t nnz_small = nnz-nnz_large;
-
-  // // write in the preserved entries.
-  // for( size_t jj = nnz_small; jj < nnz; jj++ ){
-  //   ii = ind_vec_[jj];
-  //   assert(x[ii].val != 0);
-  //   x.set_value(ii, (x[ii].val / abs(x[ii].val))*xabs_[ii]);
-  // }
-
-  //std::cout<<nnz_small<<std::endl;
+  size_t nnz_small = x.size()-nnz_large;
 
   // Cut the preserved entries out of xabs_
-  std::valarray<size_t> ind_resample = ind_vec_[std::slice(0,nnz_small,1)];
+  std::valarray<size_t> ind_resample = inds_[std::slice(0,nnz_small,1)];
   std::valarray<double> xabs_resample = xabs_[ind_resample];
-  xabs_sum = xabs_resample.sum();
-  xabs_resample /= xabs_sum;
+  double xabs_sum = xabs_resample.sum();
 
   // Resample the remaining entries.
   resample_piv(xabs_resample,target_nnz-nnz_large, gen_);
-  //resample_sys(xabs_resample,target_nnz-nnz_large, gen_);
-  //xabs_resample *= xabs_sum/(double)(target_nnz-nnz_large);
+  xabs_resample *= xabs_sum/(double)(target_nnz-nnz_large);
 
   // compress_xabs_sys(target_nnz-nnz_large);
   // Translate the compression of the moduli vector to
@@ -2034,13 +2023,11 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
     // Find the corresponding member of x and
     // set its modulus according to the modulus
     // of xabs.
-    //std::cout<< ind_resample[jj] <<"\t"<< x[ind_resample[jj]].val << std::endl;
     ii = ind_resample[jj];
-    assert(x[ii].val != 0);
-    x.set_value(ii,(x[ii].val / abs(x[ii].val)) 
-      * xabs_resample[jj] * xabs_sum/(double)(target_nnz-nnz_large)) ;
+    if( abs(x[ii].val)!=0 ){
+      x.set_value(ii,(x[ii].val / abs(x[ii].val))*xabs_resample[jj]);
+    }
   }
-  
   // Remove the entries set to zero.
   x.remove_zeros();
   // The vector is now compressed.
@@ -2055,24 +2042,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 template <typename IdxType, typename ValType, class RNG>
 inline void Compressor<IdxType, ValType, RNG>::resample(SparseVector<IdxType, ValType> &x, const size_t ncopies) {
 
-  double Tol = 1e-12;
-  size_t nnz = 0;
-
-  xabs_.resize(x.size());
-
-  // Get rid of tiny entries.
-  for (size_t jj = 0; jj < x.size(); jj++){
-    if (abs(x[jj].val)<=Tol){
-      x.set_value(jj,0);
-      xabs_[jj] = 0;
-    }
-    else{
-      nnz++;
-    }
-  }
-  double xabs_sum = xabs_.sum();
-
-  xabs_ /= xabs_sum;
+  setup(x);
 
   // Resample the remaining entries.
   resample_piv(xabs_,ncopies, gen_);
@@ -2098,47 +2068,28 @@ inline void Compressor<IdxType, ValType, RNG>::resample(SparseVector<IdxType, Va
 // Return the indices of the sparse vector that should
 // be preserved in a compression.
 template <typename IdxType, typename ValType, class RNG>
-inline void Compressor<IdxType, ValType, RNG>::preserve(const SparseVector<IdxType, ValType> &x, 
+inline const size_t Compressor<IdxType, ValType, RNG>::preserve(SparseVector<IdxType, ValType> &x, 
   const size_t target_nnz, std::vector<bool>& bools) {
 
   // if x already has less than target_nnz non-zero entries this 
   // is a do nothing routine.
   if(x.size()<=target_nnz){
-    std::fill(bools.begin(),bools.begin()+x.size(),true);
-    return;
+    bools.resize(x.size());
+    std::fill(bools.begin(),bools.end(),true);
+    return x.size();
   }
 
-  double Tol = 1e-12;
-  size_t nnz = 0;
-
-  // Get rid of tiny entries.
-  for (size_t jj = 0; jj < x.size(); jj++){
-    if (abs(x[jj].val)<=Tol){
-      x.set_value(jj,0);
-      bools[jj] = true;
-    }
-    else{
-      bools[jj] = false;
-      nnz++;
-    }
-  }
+  size_t nnz = setup(x);
 
   if ( nnz<=target_nnz ){
-    return;
+    x.remove_zeros();
+    bools.resize(x.size());
+    std::fill(bools.begin(),bools.end(),true);
+    return x.size();
   }
 
-  xabs_.resize(nnz);
-  ind_vec_.resize(nnz);
-
-  nnz = 0;
-  for (size_t jj = 0; jj < x.size(); jj++) {
-    if ( x[jj].val != 0 ){
-      xabs_[nnz] = abs(x[jj].val);
-      ind_vec_[nnz] = jj;
-      nnz++;
-    }
-  }
-  assert(nnz==xabs_.size());
+  bools.resize(x.size());
+  std::fill(bools.begin(),bools.end(),false);
 
   // Find entries to be preserved.
   size_t nnz_large = preserve_xabs(target_nnz);
@@ -2147,13 +2098,13 @@ inline void Compressor<IdxType, ValType, RNG>::preserve(const SparseVector<IdxTy
   // Translate the compression of the moduli vector to
   // a compression of the input vector. For each entry
   // of the compressed xabs,
-  for(size_t jj = 0; jj < nnz_small; jj++){
+  for(size_t jj = nnz_small; jj < x.size(); jj++){
     // Find the corresponding member of x and
     // set its modulus according to the modulus
     // of xabs.
-    bools[ind_vec_[jj]] = false;
+    bools[inds_[jj]] = true;
   }
-  return;
+  return nnz_large;
 }
 
 // Move the largest entries to the back of xabs so they will be preserved exactly
@@ -2170,8 +2121,8 @@ inline size_t Compressor<IdxType, ValType, RNG>::preserve_xabs(const size_t targ
 
     // Find the maximum and storage position of the maximum.
     double dmax = 0;
-    for (size_t jj = 0; jj < ind_vec_.size(); jj++) {
-      if (xabs_[ind_vec_[jj]] > dmax) {
+    for (size_t jj = 0; jj < inds_.size(); jj++) {
+      if (xabs_[inds_[jj]] > dmax) {
         imax = jj;
         dmax = xabs_[imax];
       }
@@ -2179,7 +2130,7 @@ inline size_t Compressor<IdxType, ValType, RNG>::preserve_xabs(const size_t targ
     // Place it at the end of the stored vector;
     // we are building a new vector in place by
     // transferring entries within the old one.
-    std::swap( ind_vec_[imax], ind_vec_[ind_vec_.size()-1] );
+    std::swap( inds_[imax], inds_[inds_.size()-1] );
 
     // Check if there are any elements large
     // enough to be preserved exactly.  If so
@@ -2198,15 +2149,15 @@ inline size_t Compressor<IdxType, ValType, RNG>::preserve_xabs(const size_t targ
     if (target_nnz * dmax > sum_unprocessed) {
       nnz_large = 1;
       sum_unprocessed -= dmax;
-      std::make_heap(begin(ind_vec_),end(ind_vec_) - nnz_large,
+      std::make_heap(begin(inds_),end(inds_) - nnz_large,
         [&](size_t ii, size_t jj){return xabs_[ii]<xabs_[jj];} );
 
-      while (( (target_nnz - nnz_large) * xabs_[ind_vec_[0]] > sum_unprocessed) 
+      while (( (target_nnz - nnz_large) * xabs_[inds_[0]] > sum_unprocessed) 
                and (nnz_large < target_nnz)) {
-        sum_unprocessed -= xabs_[ind_vec_[0]];
+        sum_unprocessed -= xabs_[inds_[0]];
         //std::cout << sum_unprocessed << std::endl; 
         assert(sum_unprocessed >0);
-        std::pop_heap(begin(ind_vec_),end(ind_vec_) - nnz_large, 
+        std::pop_heap(begin(inds_),end(inds_) - nnz_large, 
           [&](size_t ii, size_t jj){return xabs_[ii]<xabs_[jj];} );
         nnz_large++;
       }
@@ -2222,7 +2173,7 @@ inline size_t resample_sys(std::valarray<double>& xabs_,const  size_t target_nnz
 
   std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
 
-  xabs_ *= (double)target_nnz;
+  xabs_ *= (double)target_nnz/xabs_.sum();
 
   size_t jj = 0;
   double w = xabs_[0];
@@ -2260,7 +2211,7 @@ inline size_t resample_piv(std::valarray<double>& xabs_,const size_t target_nnz,
 
   std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
 
-  xabs_ *= (double)target_nnz;
+  xabs_ *= (double)target_nnz/xabs_.sum();
 
   //std::cout<<target_nnz<<std::endl;
 
@@ -2268,7 +2219,7 @@ inline size_t resample_piv(std::valarray<double>& xabs_,const size_t target_nnz,
   size_t jj = 1;
   size_t kk = 2;
   double a=xabs_[0]-floor(xabs_[0]), b=xabs_[1]-floor(xabs_[1]);
-  double EPS = 1e-6;
+  double EPS = 1e-12;
 
   // for(size_t ll=0; ll<xabs_.size(); ll++)
   //   std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
@@ -2298,14 +2249,14 @@ inline size_t resample_piv(std::valarray<double>& xabs_,const size_t target_nnz,
     }
     if ( (a<EPS or a>1.0-EPS) and kk<xabs_.size() ){
       //std::cout<<a<<" "<<b<<std::endl;
-      xabs_[ii] = a + floor(xabs_[ii]);
+      xabs_[ii] = round(a + floor(xabs_[ii]));
       a = xabs_[kk] - floor(xabs_[kk]);
       ii = kk;
       kk++;
     }
     if ( (b<EPS or b>1.0-EPS) and kk<xabs_.size() ){
       //std::cout<<a<<" "<<b<<std::endl;
-      xabs_[jj]=b + floor(xabs_[jj]);
+      xabs_[jj]= round(b + floor(xabs_[jj]));
       b = xabs_[kk] - floor(xabs_[kk]);
       jj = kk;
       kk++;
@@ -2333,8 +2284,8 @@ inline size_t resample_piv(std::valarray<double>& xabs_,const size_t target_nnz,
       b=0;
     }
   }
-  xabs_[ii] = a + floor(xabs_[ii]);
-  xabs_[jj] = b + floor(xabs_[jj]);
+  xabs_[ii] = round(a + floor(xabs_[ii]));
+  xabs_[jj] = round(b + floor(xabs_[jj]));
 
   return 0;
 }

@@ -27,10 +27,10 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 10;         // full dimension 
+  size_t d = 200;         // full dimension 
   size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
-  size_t Nit = 1;      // number of iterations after burn in
-  size_t m = 2;      // compression parameter (after compression vectors have
+  size_t Nit = 2;      // number of iterations after burn in
+  size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
@@ -40,14 +40,14 @@ int main() {
   SparseMatrix<long, double> A(d,d);
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
-  SparseVector<long, double> y(d);
+  SparseVector<long, double> y(2*d);
   SparseVector<long, double> z(d);
   SparseVector<long, double> x(2*d);
   SparseVector<long, double> bias(2*d);
 
   std::vector<bool> preserve(d);
   SparseVector<long, double> col_norms(m);
-  std::valarray<double> col_norms_valarray(m);
+  std::valarray<double> col_budgets(m);
 
   for(size_t jj=0;jj<d;jj++){
   	bias.set_entry((long)jj,(double)0);
@@ -107,14 +107,14 @@ int main() {
   	// Compute the Neumann sum up to Nit powers of G starting from b
   	x = b;
   	y = b;
-  	
+
+
     compressor.compress(y, m);
   	for (size_t jj=0; jj<Nit; jj++){
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
 
-      A.print_ccs();
       compressor.preserve(y, m, preserve);
 
       for (size_t ii=0; ii<y.size(); ii++){
@@ -141,25 +141,30 @@ int main() {
           }
         }
       }
-      A.print_ccs();
-      y.print();
+      // A.print_ccs();
+      // y.print();
+
+      y.remove_zeros();
 
       A.col_norms(col_norms);
-      compressor.resample(col_norms,m);
+      // col_norms.print();
+
+      for(size_t ii=0; ii<m; ii++){
+        col_budgets[ii] = col_norms[ii].val;
+      }
+      resample_piv(col_budgets, m, &generator);
 
       for(size_t ii=0; ii<A.ncols(); ii++){
-        A.get_col(ii,z);
-        compressor.compress(z,col_norms[ii].val);
-        A.set_col(z);
+        // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
+        if( col_budgets[ii]>0 ){
+          A.get_col(ii,z);
+          compressor.compress(z,(size_t)col_budgets[ii]);
+          A.set_col(z,y[ii].idx);
+        }
       }
       A.row_sums(z);
-      
-      // for (size_t ii=0; ii<y.size(); ii++){
-      //   if( preserve[ii]==true ){
-      //     A.eject_row(ii);
-      //   }
-      // }
-      compressor.compress(y, m);
+
+      y+=z;
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
