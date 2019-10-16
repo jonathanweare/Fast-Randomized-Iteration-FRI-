@@ -27,10 +27,10 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 200;         // full dimension 
+  size_t d = 5;         // full dimension 
   size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
   size_t Nit = 2;      // number of iterations after burn in
-  size_t m = 50;      // compression parameter (after compression vectors have
+  size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
@@ -110,12 +110,14 @@ int main() {
 
 
     compressor.compress(y, m);
+
   	for (size_t jj=0; jj<Nit; jj++){
+      std::cout<<y.size()<<std::endl;
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
 
-      compressor.preserve(y, m, preserve);
+      std::cout << compressor.preserve(y, m, preserve) <<std::endl;
 
       for (size_t ii=0; ii<y.size(); ii++){
         //std::cout<< ii<<" "<<preserve[ii]<<std::endl;
@@ -141,7 +143,7 @@ int main() {
           }
         }
       }
-      // A.print_ccs();
+      A.print_ccs();
       // y.print();
 
       y.remove_zeros();
@@ -155,16 +157,23 @@ int main() {
       resample_piv(col_budgets, m, &generator);
 
       for(size_t ii=0; ii<A.ncols(); ii++){
-        // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
+        std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
         if( col_budgets[ii]>0 ){
           A.get_col(ii,z);
           compressor.compress(z,(size_t)col_budgets[ii]);
           A.set_col(z,y[ii].idx);
         }
       }
+
+      A.print_ccs();
       A.row_sums(z);
+      z.remove_zeros();
+      z.print();
+      y.print();
 
       y+=z;
+
+      y.print();
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
