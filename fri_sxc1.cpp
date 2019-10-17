@@ -47,7 +47,7 @@ int main() {
 
   std::vector<bool> preserve(d);
   size_t npres;
-  SparseVector<long, double> col_norms(m);
+  std::vector<double> col_norms(m);
   std::valarray<double> col_budgets(m);
 
   for(size_t jj=0;jj<d;jj++){
@@ -153,7 +153,7 @@ int main() {
       // col_norms.print();
 
       for(size_t ii=0; ii<m; ii++){
-        col_budgets[ii] = col_norms[ii].val;
+        col_budgets[ii] = col_norms[ii];
       }
       resample_piv(col_budgets, m-npres, &generator);
 

@@ -330,10 +330,10 @@ return;
 
 
 template <typename IdxType, typename ValType>
-inline void SparseVector<IdxType, ValType>::set_value(const size_t idx, const ValType val){
-  assert(idx<curr_size_);
+inline void SparseVector<IdxType, ValType>::set_value(const size_t ent_num, const ValType val){
+  assert(ent_num<curr_size_);
 
-  entries_[idx].val = val;
+  entries_[ent_num].val = val;
   return;
 }
 
@@ -833,16 +833,18 @@ public:
   inline void eject_row(const size_t row_num);
 
   // Compute column sums and output in sparse vector.
-  inline void col_sums(std::vector<ValType>&& other);
+  inline void col_sums(std::vector<ValType>& other);
 
   // Compute column norms and output in sparse vector.
-  inline void col_norms(std::vector<ValType>&& other);
+  inline void col_norms(std::vector<ValType>& other);
 
   // Compute row sums and output in sparse vector.
   inline void row_sums(std::vector<ValType>& other);
 
+  inline void row_sums(SparseVector<IdxType,ValType>& other);
+
   // Compute row norms and output in sparse vector.
-  inline void row_norms(std::vector<ValType>&& other);
+  inline void row_norms(std::vector<ValType>& other);
 
   inline size_t locate_col(const IdxType idx);
 
@@ -1787,7 +1789,7 @@ inline void SparseMatrix<IdxType, ValType>::get_row(const size_t row_num, Sparse
 
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::row_sums(std::vector<ValType>& sums){
-  assert(y.max_size_>=n_rows_);
+  assert(sums.size()>=n_rows_);
 
   if(!is_crs_sorted_)
     sort_crs();
@@ -1813,8 +1815,38 @@ inline void SparseMatrix<IdxType, ValType>::row_sums(std::vector<ValType>& sums)
 
 
 template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::row_sums(SparseVector<IdxType,ValType>& sums){
+  assert(sums.max_size_>=n_rows_);
+
+  if(!is_crs_sorted_)
+    sort_crs();
+
+  size_t row_head, row_end;
+  IdxType idx;
+  ValType val;
+
+  sums.clear();
+
+  for( size_t ii = 0; ii<n_rows_; ii++){
+    if( row_lens_[ii]>0 ){
+      row_head = ii*max_rowcol_nnz_;
+      row_end = row_head + row_lens_[ii];
+      idx = row_idx(ii);
+      val = entries_[crs_order_[row_head]].val;
+      for( size_t jj = row_head+1; jj<row_end; jj++){
+        val+=entries_[crs_order_[jj]].val;
+      }
+      sums.set_entry(idx, val);
+    }
+  }
+
+  return;
+}
+
+
+template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::col_sums(std::vector<ValType>& sums){
-  assert(y.max_size_>=n_cols_);
+  assert(sums.size()>=n_cols_);
 
   if(!is_ccs_sorted_)
     sort_ccs();
@@ -1840,7 +1872,7 @@ inline void SparseMatrix<IdxType, ValType>::col_sums(std::vector<ValType>& sums)
 
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::col_norms(std::vector<ValType>& norms){
-  assert(y.max_size_>=n_cols_);
+  assert(norms.size()>=n_cols_);
 
   if(!is_ccs_sorted_)
     sort_ccs();
@@ -2175,7 +2207,6 @@ inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxTyp
   size_t jj=0;
   for(size_t ii=0; ii<A.ncols(); ii++){
     // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
-    if( A.col_size(ii) )
     if( budgets[ii]>0 ){
       colidx = A.col_idx(ii);
       A.get_col(ii,z);
