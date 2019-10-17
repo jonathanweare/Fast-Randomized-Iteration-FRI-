@@ -37,7 +37,7 @@ int main() {
   size_t seed = 1;        // seed for RNG.  Can choose random seet below.
 
   // Initialize iterate vectors and submatrix.
-  SparseMatrix<long, double> A(d,d);
+  SparseMatrix<long, double> A(d,d,d);
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
   SparseVector<long, double> y(2*d);
