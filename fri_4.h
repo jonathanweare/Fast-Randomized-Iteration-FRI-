@@ -1586,7 +1586,8 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
   size_t col_head, col_end;
 
   if ( idx > entries_[ccs_order_[(n_cols_-1)*max_rowcol_nnz_]].colidx ){                // will this be the largest column index
-    assert(other.size()>0);                            // last column can't be empty
+    assert(other.size()>0); 
+    col_num = n_cols_;                           // last column can't be empty
     inject_col(col_num); 
   }
   else{                                                              // this won't be the largest column index
@@ -2022,6 +2023,7 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
     single_column_add.clear();
     Acolumn(single_column_add, x[jj].idx, params);
     single_column_add *= x[jj].val;
+    std::cout<< jj<<" "<<x.size()<<" "<<single_column_add.size()<<std::endl;
     B.set_col(single_column_add,jj);
   }
 
@@ -2095,7 +2097,7 @@ public:
   // be preserved exactly in a compression.
   inline const size_t preserve(SparseVector<IdxType, ValType> &x, const size_t target_nnz, std::vector<bool>& bools);
 
-  inline void compress_cols(SparseMatrix<IdxType, ValType> &A, const std::valarray<size_t>& budgets);
+  inline void compress_cols(SparseMatrix<IdxType, ValType> &A, const std::valarray<double>& budgets);
 };
 
 
@@ -2199,9 +2201,9 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 
 
 template <typename IdxType, typename ValType, class RNG>
-inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxType, ValType> &A, const std::valarray<size_t>& budgets) {
+inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxType, ValType> &A, const std::valarray<double>& budgets) {
 
-  SparseVector<IdxType,ValType> z(A.rowcol_capcity());
+  SparseVector<IdxType,ValType> z(A.rowcol_capacity());
   IdxType colidx;
 
   size_t jj=0;
@@ -2210,7 +2212,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxTyp
     if( budgets[ii]>0 ){
       colidx = A.col_idx(ii);
       A.get_col(ii,z);
-      compress(z, budgets[ii]);
+      compress(z, (size_t)budgets[ii]);
       A.set_col(z,colidx);
     }
     else{

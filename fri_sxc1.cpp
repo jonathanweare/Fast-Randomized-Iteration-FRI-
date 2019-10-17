@@ -28,8 +28,8 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 5;         // full dimension 
-  size_t Nspls = 1<<14;      // number of independent samples of the estimator to generate
-  size_t Nit = 20;      // number of iterations after burn in
+  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
+  size_t Nit = 1;      // number of iterations after burn in
   size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
@@ -85,10 +85,13 @@ int main() {
 
   // b = (I-G)*xtrue
   sparse_colwisemv(A1column, d, bw, xtrue, A);
+  assert(0);
   A.row_sums(b);
   x = xtrue;
   x += b;
   b = x;
+
+  assert(0);
 
   // compute the true Neumann sum up to Nit powers of G starting from b
   x = b;
@@ -101,6 +104,8 @@ int main() {
   }
   xtrue = x;
   ftrue = xtrue.sum();
+
+  assert(0);
 
   // Generate Nspls independent samples of the estimatator of the Neumann sum
 	start = clock();
@@ -119,6 +124,8 @@ int main() {
       x += y;
 
       npres = compressor.preserve(y, m, preserve);
+
+      assert(0);
 
       for (size_t ii=0; ii<y.size(); ii++){
         //std::cout<< ii<<" "<<preserve[ii]<<std::endl;
@@ -157,16 +164,16 @@ int main() {
       }
       resample_piv(col_budgets, m-npres, &generator);
 
-      //compressor.compress(A, col_budgets);
+      compressor.compress_cols(A, col_budgets);
 
-      for(size_t ii=0; ii<A.ncols(); ii++){
-        // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
-        if( col_budgets[ii]>0 ){
-          A.get_col(ii,z);
-          compressor.compress(z,(size_t)col_budgets[ii]);
-          A.set_col(z,y[ii].idx);
-        }
-      }
+      // for(size_t ii=0; ii<A.ncols(); ii++){
+      //   // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
+      //   if( col_budgets[ii]>0 ){
+      //     A.get_col(ii,z);
+      //     compressor.compress(z,(size_t)col_budgets[ii]);
+      //     A.set_col(z,y[ii].idx);
+      //   }
+      // }
 
       //A.print_ccs();
       A.row_sums(z);
