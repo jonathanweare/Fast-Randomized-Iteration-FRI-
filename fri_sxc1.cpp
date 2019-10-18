@@ -28,7 +28,7 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 5;         // full dimension 
-  size_t Nspls = 1<<29;      // number of independent samples of the estimator to generate
+  size_t Nspls = 1<<31;      // number of independent samples of the estimator to generate
   size_t Nit = 2;      // number of iterations after burn in
   size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
