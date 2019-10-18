@@ -1164,7 +1164,9 @@ inline SparseMatrixEntry<IdxType,ValType>& SparseMatrix<IdxType, ValType>::get_r
 
   assert( row_num<n_rows_ );
 
-  assert( ent_num<col_lens_[row_num] );
+  //std::cout<<ent_num<<" "<<row_num<<" "<<row_lens_[row_num]<<std::endl;
+
+  assert( ent_num<row_lens_[row_num] );
   return entries_[crs_order_[row_num*max_rowcol_nnz_+ent_num]];
   
 }
@@ -1282,15 +1284,18 @@ inline void SparseMatrix<IdxType, ValType>::fill_col(const size_t col_num, const
   clear_col(col_num);
 
   size_t col_head = col_num*max_rowcol_nnz_;
-  size_t col_end = col_head + col_lens_[col_num];
+  size_t col_end = col_head + other.size();
 
   for (size_t jj=0; jj<other.size(); jj++){
     entries_[curr_size_+jj].colidx = idx;
     entries_[curr_size_+jj].rowidx = other[jj].idx;
     entries_[curr_size_+jj].val = other[jj].val;
+    //std::cout<<idx<<" "<<other[jj].idx<<" "<<other[jj].val<<std::endl;
   }
 
   col_lens_[col_num] = other.size();
+
+  //std::cout<<curr_size_<<" "<< col_head<<" "<<col_end<<" "<<other.size()<<std::endl;
 
   std::iota(ccs_order_.begin()+col_head,ccs_order_.begin()+col_end,curr_size_);
   std::iota(inv_ccs_order_.begin()+curr_size_,inv_ccs_order_.begin()+curr_size_+other.size(),col_head);
@@ -1358,9 +1363,9 @@ inline void SparseMatrix<IdxType, ValType>::clear_col(const size_t col_num){
     }
   }
 
-  col_lens_[col_num] = 0;
-
   curr_size_ -= col_lens_[col_num];
+
+  col_lens_[col_num] = 0;
 
   while( col_lens_[n_cols_-1]==0 ){                 // last column aren't allowed to be empty
     n_cols_--;
@@ -1398,9 +1403,9 @@ inline void SparseMatrix<IdxType, ValType>::clear_row(const size_t row_num){
     }
   }
 
-  row_lens_[row_num] = 0;
-
   curr_size_ -= row_lens_[row_num];
+
+  row_lens_[row_num] = 0;
 
   while( row_lens_[n_rows_-1]==0 ){                 // last row isn't allowed to be empty
     n_rows_--;
@@ -1598,12 +1603,15 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
     }
     assert(col_num<n_cols_);
 
+    // std::cout<<col_num<<std::endl;
+
     col_head = col_num*max_rowcol_nnz_;
     col_end = col_head + col_lens_[col_num];
 
     assert(col_head<col_end);
 
     if (entries_[ccs_order_[col_head]].colidx == idx){                 // this replaces an existing column
+      // std::cout<<col_num<<std::endl;
       clear_col(col_num);
     }
     else if ( col_lens_[col_num-1]==0 ){
@@ -1679,7 +1687,6 @@ inline void SparseMatrix<IdxType, ValType>::sort_crs(){
   }
 
   is_crs_sorted_=true;
-  is_ccs_sorted_=false;
 
   return;
 }
@@ -1732,7 +1739,6 @@ inline void SparseMatrix<IdxType, ValType>::sort_ccs(){
   }
 
   is_ccs_sorted_=true;
-  is_crs_sorted_=false;
 
   return;
 }
@@ -2023,8 +2029,10 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
     single_column_add.clear();
     Acolumn(single_column_add, x[jj].idx, params);
     single_column_add *= x[jj].val;
-    std::cout<< jj<<" "<<x.size()<<" "<<single_column_add.size()<<std::endl;
+    //single_column_add.print();
+    // std::cout<< jj<<" "<<x.size()<<" "<<single_column_add.size()<<std::endl;
     B.set_col(single_column_add,jj);
+    //B.print_ccs();
   }
 
   return;
@@ -2124,7 +2132,7 @@ inline size_t Compressor<IdxType, ValType, RNG>::setup(SparseVector<IdxType, Val
   xabs_.resize(x.size());
   inds_.resize(x.size());
 
-  double temp, Tol = 1e-12;
+  double temp, Tol = 1e-9;
   size_t nnz;
 
   for(size_t jj=0;jj<x.size();jj++){
@@ -2406,7 +2414,7 @@ inline size_t resample_piv(std::valarray<double>& xabs_,const size_t target_nnz,
   size_t jj = 1;
   size_t kk = 2;
   double a=xabs_[0]-floor(xabs_[0]), b=xabs_[1]-floor(xabs_[1]);
-  double EPS = 1e-12;
+  double EPS = 1e-9;
 
   // for(size_t ll=0; ll<xabs_.size(); ll++)
   //   std::cout<<ll<<" "<<xabs_[ll]<<std::endl;

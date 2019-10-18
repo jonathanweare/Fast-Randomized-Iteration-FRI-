@@ -28,8 +28,8 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 5;         // full dimension 
-  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
-  size_t Nit = 1;      // number of iterations after burn in
+  size_t Nspls = 1<<29;      // number of independent samples of the estimator to generate
+  size_t Nit = 2;      // number of iterations after burn in
   size_t m = 2;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
@@ -71,12 +71,15 @@ int main() {
   // and the error in a dot product.
   double finst, ftrue, fbias=0, fvar=0;
 
-  //If you want you can build and print the whole matrix.
+  // If you want you can build and print the whole matrix.
   // for(size_t jj=0; jj<d; jj++){
   //   x.set_entry((long)jj,1.0);
   // }
-  // A.sparse_colwisemv(A1column, d, bw, x, A);
-  //A.print_ccs();
+  // sparse_colwisemv(A1column, d, bw, x, A);
+  // A.print_ccs();
+  // A.print_crs();
+  // A.print_ccs();
+  // assert(0);
 
   // The true solution vector xtrue
   for(size_t jj=0; jj<d; jj++){
@@ -85,13 +88,10 @@ int main() {
 
   // b = (I-G)*xtrue
   sparse_colwisemv(A1column, d, bw, xtrue, A);
-  assert(0);
   A.row_sums(b);
   x = xtrue;
   x += b;
   b = x;
-
-  assert(0);
 
   // compute the true Neumann sum up to Nit powers of G starting from b
   x = b;
@@ -105,8 +105,6 @@ int main() {
   xtrue = x;
   ftrue = xtrue.sum();
 
-  assert(0);
-
   // Generate Nspls independent samples of the estimatator of the Neumann sum
 	start = clock();
   for (size_t spl = 0; spl<Nspls; spl++){
@@ -116,6 +114,7 @@ int main() {
 
 
     compressor.compress(y, m);
+    // y.print();
 
   	for (size_t jj=0; jj<Nit; jj++){
       // std::cout<<y.size()<<std::endl;
@@ -125,7 +124,11 @@ int main() {
 
       npres = compressor.preserve(y, m, preserve);
 
-      assert(0);
+      //std::cout<<npres<<std::endl;
+
+      // A.print_ccs();
+
+      // y.print();
 
       for (size_t ii=0; ii<y.size(); ii++){
         //std::cout<< ii<<" "<<preserve[ii]<<std::endl;
@@ -133,6 +136,7 @@ int main() {
           size_t nummax =0;
           double valmax = abs((A.get_row_entry(ii,0)).val);
           for (size_t kk=1; kk<A.row_size(ii); kk++){
+            //std::cout<<kk<<std::endl;
             if ( abs((A.get_row_entry(ii,kk)).val)>valmax ){
               A.set_row_value(ii,nummax,0);
               valmax = abs((A.get_row_entry(ii,0)).val);
@@ -151,31 +155,26 @@ int main() {
           }
         }
       }
-      //A.print_ccs();
+      // A.print_ccs();
       // y.print();
 
       y.remove_zeros();
 
       A.col_norms(col_norms);
-      // col_norms.print();
 
       for(size_t ii=0; ii<m; ii++){
         col_budgets[ii] = col_norms[ii];
       }
       resample_piv(col_budgets, m-npres, &generator);
 
+      // std::cout<<m<<" "<<npres<<std::endl;
+      for(size_t ii=0; ii<m; ii++){
+        // std::cout<<col_norms[ii]<<" "<<col_budgets[ii]<<std::endl;
+      }
+
       compressor.compress_cols(A, col_budgets);
 
-      // for(size_t ii=0; ii<A.ncols(); ii++){
-      //   // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
-      //   if( col_budgets[ii]>0 ){
-      //     A.get_col(ii,z);
-      //     compressor.compress(z,(size_t)col_budgets[ii]);
-      //     A.set_col(z,y[ii].idx);
-      //   }
-      // }
-
-      //A.print_ccs();
+      // A.print_ccs();
       A.row_sums(z);
       z.remove_zeros();
       //z.print();
