@@ -27,30 +27,31 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 5;         // full dimension 
-  size_t Nspls = 1<<22;      // number of independent samples of the estimator to generate
+  size_t d = 4;         // full dimension 
+  size_t Nspls = 1<<26;      // number of independent samples of the estimator to generate
   size_t Nit = 2;     // number of iterations after burn in
   size_t m = 3;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
-  size_t seed = 1;        // seed for RNG.  Can choose random seet below.
+  size_t seed = 0;        // seed for RNG.  Can choose random seet below.
 
   // Initialize iterate vectors and submatrix.
   SparseMatrix<long, double> A(d,d,d);
+  SparseMatrix<long, double> B(d,d,d);
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
   SparseVector<long, double> y(2*d);
   SparseVector<long, double> x(2*d);
   SparseVector<long, double> bias(2*d);
 
-  std::vector<double> col_norms(m);
+  std::vector<double> col_norms(m), col_norms2(m);
   std::valarray<double> col_budgets(m);
 
   for(size_t jj=0;jj<d;jj++){
   	bias.set_entry((long)jj,(double)0);
   }
-  double avenrm, invp1, avep1, aveN1;
+  double avenrm, invp1, avep1, aveN1, tmp;
   
   // Initialize a seeded random compressor.
   std::random_device rd;
@@ -87,6 +88,12 @@ int main() {
   x += b;
   b = x;
 
+  // b.clear();
+  // // b.set_entry(1,1.0);
+  // b.set_entry(2,1.0);
+  // b.set_entry(3,1.0);
+  // b.set_entry(4,1.0);
+
   // compute the true Neumann sum up to Nit powers of G starting from b
   x = b;
   y = b;
@@ -111,45 +118,37 @@ int main() {
     // y.print();
 
   	for (size_t jj=0; jj<Nit; jj++){
-      // std::cout<< jj <<" "<<y.size()<<std::endl;
-      // std::cout<<std::endl;
 
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
 
-      // A.print_ccs();
-      // y.print();
+      if( jj<Nit-1 ){
+        col_norms.resize(A.ncols());
+        col_budgets.resize(A.ncols());
+        A.col_norms(col_norms);
 
-      col_norms.resize(A.ncols());
-      col_budgets.resize(A.ncols());
-      A.col_norms(col_norms);
+        for(size_t ii=0; ii<A.ncols(); ii++){
+          col_budgets[ii] = col_norms[ii];
+        }
+        avenrm = col_budgets.sum()/(double)m;
+        resample_piv(col_budgets, m, &generator);
 
-      for(size_t ii=0; ii<A.ncols(); ii++){
-        col_budgets[ii] = col_norms[ii];
-      }
-      avenrm = col_budgets.sum()/(double)m;
-      resample_sys(col_budgets, m, &generator);
+        compressor.compress_cols(A, col_budgets);
 
-      // for(size_t ii=0; ii<A.ncols(); ii++){
-      //   std::cout<<col_norms[ii]<<" "<<col_budgets[ii]<<std::endl;
-      // }
-
-      compressor.compress_cols(A, col_budgets);
-
-      for(size_t jj=0; jj<A.ncols();jj++){
-        if( (long)round(col_budgets[jj])==1 ){
-          invp1 = avenrm/col_norms[jj];
-          if(invp1>0){
-            A.scale_col(jj,invp1);
+        col_norms.resize(A.ncols());
+        A.col_norms(col_norms);
+        for(size_t ii=0; ii<A.ncols();ii++){
+          if( col_norms[ii]>1e-9 ){
+            invp1 = avenrm/col_norms[ii];
+            if(invp1>1.0){
+              A.scale_col(ii,invp1);
+            }
           }
         }
+
+        A.row_sums(y);
       }
-
-      A.row_sums(y);
-
-      // A.print_ccs();
-      // y.print();
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.

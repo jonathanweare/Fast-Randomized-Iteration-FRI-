@@ -2271,6 +2271,9 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   }
 
   size_t nnz_large = preserve_xabs(target_nnz);
+  // if ( nnz_large>0 ){
+  //   std::cout<<nnz_large<<" "<<target_nnz<<" "<<x.size()<<std::endl;
+  // }
 
   // std::cout<<nnz_large<<" "<<target_nnz<<std::endl;
 
@@ -2316,7 +2319,6 @@ inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxTyp
   SparseVector<IdxType,ValType> z(A.rowcol_capacity());
   IdxType colidx;
 
-  size_t jj=0;
   for(size_t ii=0; ii<A.ncols(); ii++){
     // std::cout << ii<<" "<<budgets[ii]<<std::endl;
     if( budgets[ii]>0 ){
