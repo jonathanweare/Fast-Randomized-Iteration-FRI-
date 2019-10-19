@@ -1915,7 +1915,9 @@ inline void SparseMatrix<IdxType, ValType>::row_sums(SparseVector<IdxType,ValTyp
 
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::col_sums(std::vector<ValType>& sums){
-  assert(sums.size()>=n_cols_);
+  assert(sums.capacity()>=n_cols_);
+
+  sums.resize(n_cols_);
 
   if(!is_ccs_sorted_)
     sort_ccs();
@@ -1941,7 +1943,12 @@ inline void SparseMatrix<IdxType, ValType>::col_sums(std::vector<ValType>& sums)
 
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::col_norms(std::vector<ValType>& norms){
-  assert(norms.size()>=n_cols_);
+
+  std::cout<<norms.capacity()<<" "<<n_cols_<<std::endl;
+
+  assert(norms.capacity()>=n_cols_);
+
+  norms.resize(n_cols_);
 
   if(!is_ccs_sorted_)
     sort_ccs();
@@ -2240,6 +2247,8 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 
   size_t nnz_large = preserve_xabs(target_nnz);
 
+  // std::cout<<nnz_large<<" "<<target_nnz<<std::endl;
+
   //size_t nnz_large = 0;
   assert(nnz_large<target_nnz);
 
@@ -2284,7 +2293,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxTyp
 
   size_t jj=0;
   for(size_t ii=0; ii<A.ncols(); ii++){
-    // std::cout << ii<<" "<<col_budgets[ii]<<std::endl;
+    std::cout << ii<<" "<<budgets[ii]<<std::endl;
     if( budgets[ii]>0 ){
       colidx = A.col_idx(ii);
       A.get_col(ii,z);

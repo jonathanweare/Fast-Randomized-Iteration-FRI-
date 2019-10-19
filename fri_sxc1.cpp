@@ -28,9 +28,9 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 5;         // full dimension 
-  size_t Nspls = 1<<27;      // number of independent samples of the estimator to generate
-  size_t Nit = 2;      // number of iterations after burn in
-  size_t m = 4;      // compression parameter (after compression vectors have
+  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
+  size_t Nit = 13;     // number of iterations after burn in
+  size_t m = 3;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
@@ -41,12 +41,9 @@ int main() {
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
   SparseVector<long, double> y(2*d);
-  SparseVector<long, double> z(d);
   SparseVector<long, double> x(2*d);
   SparseVector<long, double> bias(2*d);
 
-  std::vector<bool> preserve(d);
-  size_t npres;
   std::vector<double> col_norms(m);
   std::valarray<double> col_budgets(m);
 
@@ -113,68 +110,33 @@ int main() {
     // y.print();
 
   	for (size_t jj=0; jj<Nit; jj++){
-      // std::cout<<y.size()<<std::endl;
+      std::cout<< jj <<" "<<y.size()<<std::endl;
+      std::cout<<std::endl;
+
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
 
-      npres = compressor.preserve(y, m, preserve);
-
-      // std::cout<<npres<<std::endl;
-      // A.print_ccs();
-      // y.print();
-
-      for (size_t ii=0; ii<y.size(); ii++){
-        // std::cout<< ii<<" "<<preserve[ii]<<std::endl;
-        if( preserve[ii]==false ){
-          size_t nummax =0;
-          double valmax = abs((A.get_row_entry(ii,0)).val);
-          for (size_t kk=1; kk<A.row_size(ii); kk++){
-            //std::cout<<kk<<std::endl;
-            if ( abs((A.get_row_entry(ii,kk)).val)>valmax ){
-              A.set_row_value(ii,nummax,0);
-              valmax = abs((A.get_row_entry(ii,0)).val);
-              nummax = kk;
-            }
-            else{
-              A.set_row_value(ii,kk,0);
-            }
-          }
-          A.set_row_value(ii,nummax,y[ii].val);
-          y.set_value(ii,0);
-        }
-        else{
-          for (size_t kk=0; kk<A.row_size(ii); kk++){
-            A.set_row_value(ii,kk,0);
-          }
-        }
-      }
-      // A.print_ccs();
-      // y.print();
+      A.print_ccs();
+      y.print();
 
       A.col_norms(col_norms);
 
-      for(size_t ii=0; ii<m; ii++){
+      for(size_t ii=0; ii<A.ncols(); ii++){
         col_budgets[ii] = col_norms[ii];
       }
-      resample_piv(col_budgets, m-npres, &generator);
+      resample_piv(col_budgets, m, &generator);
 
-      // std::cout<<m<<" "<<npres<<std::endl;
-      // for(size_t ii=0; ii<m; ii++){
-      //   std::cout<<col_norms[ii]<<" "<<col_budgets[ii]<<std::endl;
-      // }
+      for(size_t ii=0; ii<A.ncols(); ii++){
+        std::cout<<col_norms[ii]<<" "<<col_budgets[ii]<<std::endl;
+      }
 
       compressor.compress_cols(A, col_budgets);
 
-      A.row_sums(z);
+      A.row_sums(y);
 
-      // A.print_ccs();
-      // z.print();
-      // y.print();
-
-      y+=z;
-
-      // y.print();
+      A.print_ccs();
+      y.print();
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
