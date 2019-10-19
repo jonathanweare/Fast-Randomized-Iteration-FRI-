@@ -152,7 +152,11 @@ int main() {
       // A.print_ccs();
       // y.print();
 
+      col_norms.resize(A.ncols());
+      col_budgets.resize(A.ncols());
       A.col_norms(col_norms);
+      
+      assert(A.ncols()==m);
 
       for(size_t ii=0; ii<m; ii++){
         col_budgets[ii] = col_norms[ii];

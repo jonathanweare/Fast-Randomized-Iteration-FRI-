@@ -871,6 +871,8 @@ public:
   // it is replaced.
   //inline void set_row(const SparseVector<IdxType,ValType>& other, const IdxType idx);
 
+  inline void scale_col(const size_t col_num, const ValType a);
+
   inline void clear_col(const size_t col_num);
 
   inline void clear_row(const size_t row_num);
@@ -1668,11 +1670,14 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
 
     if (entries_[ccs_order_[col_head]].colidx == idx){                 // this replaces an existing column
       // std::cout<<col_num<<" "<<n_cols_<<std::endl;
+      // print_ccs();
       clear_col(col_num);
-      if( col_num==n_cols_ ){
+      if(col_num>=n_cols_){
+        col_num=n_cols_;
         inject_col(col_num);
       }
-      //std::cout<<curr_size_<<" "<<n_cols_<<std::endl;
+      // print_ccs();
+      // std::cout<<curr_size_<<" "<<n_cols_<<std::endl;
     }
     else if ( col_num>0 and col_lens_[col_num-1]==0 ){                          // there's already an empty column in the right position
       //std::cout<<col_num<<col_lens_[col_num-1]<<std::endl;
@@ -1804,6 +1809,28 @@ inline void SparseMatrix<IdxType, ValType>::sort_ccs(){
 
   return;
 }
+
+
+
+
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::scale_col(const size_t col_num, const ValType a){
+  assert(col_num<n_cols_);
+
+  if(!is_ccs_sorted_)
+    sort_ccs();
+
+  size_t col_head = col_num*max_rowcol_nnz_;
+  size_t col_end = col_head+col_lens_[col_num];
+
+  for (size_t jj=col_head; jj<col_end; jj++){
+    entries_[ccs_order_[jj]].val *= a;
+  }
+
+  return;
+}
+
+
 
 // Copy entries of column idx of a sparse matrix
 // into a sparse vector.
@@ -1944,11 +1971,9 @@ inline void SparseMatrix<IdxType, ValType>::col_sums(std::vector<ValType>& sums)
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::col_norms(std::vector<ValType>& norms){
 
-  std::cout<<norms.capacity()<<" "<<n_cols_<<std::endl;
+  // std::cout<<norms.capacity()<<" "<<n_cols_<<std::endl;
 
   assert(norms.capacity()>=n_cols_);
-
-  norms.resize(n_cols_);
 
   if(!is_ccs_sorted_)
     sort_ccs();
@@ -2293,7 +2318,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress_cols(SparseMatrix<IdxTyp
 
   size_t jj=0;
   for(size_t ii=0; ii<A.ncols(); ii++){
-    std::cout << ii<<" "<<budgets[ii]<<std::endl;
+    // std::cout << ii<<" "<<budgets[ii]<<std::endl;
     if( budgets[ii]>0 ){
       colidx = A.col_idx(ii);
       A.get_col(ii,z);
