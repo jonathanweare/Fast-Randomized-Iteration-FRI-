@@ -27,10 +27,10 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 200;         // full dimension 
-  size_t Nspls = 1<<12;      // number of independent samples of the estimator to generate
-  size_t Nit = 20;      // number of iterations after burn in
-  size_t m = 50;      // compression parameter (after compression vectors have
+  size_t d = 4;         // full dimension 
+  size_t Nspls = 1<<22;      // number of independent samples of the estimator to generate
+  size_t Nit = 2;      // number of iterations after burn in
+  size_t m = 3;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = d;         // upper bound on the number of entries in each
                          // column of matrix
@@ -40,11 +40,11 @@ int main() {
   SparseMatrix<long, double> A(d,d,d);
   SparseVector<long, double> xtrue(d);
   SparseVector<long, double> b(d);
-  SparseVector<long, double> y(d);
+  SparseVector<long, double> y(2*d);
   SparseVector<long, double> x(2*d);
   SparseVector<long, double> bias(2*d);
 
-  std::vector<size_t> preserve;
+  std::valarray<double> col_budgets(m);
 
   for(size_t jj=0;jj<d;jj++){
   	bias.set_entry((long)jj,(double)0);
@@ -67,12 +67,11 @@ int main() {
   // and the error in a dot product.
   double finst, ftrue, fbias=0, fvar=0;
 
-  //If you want you can build and print the whole matrix.
+  // If you want you can build and print the whole matrix.
   // for(size_t jj=0; jj<d; jj++){
   //   x.set_entry((long)jj,1.0);
   // }
-  // A.sparse_colwisemv(A1column, d, bw, x, A);
-  //A.print_ccs();
+  // sparse_colwisemv(A1column, d, bw, x, A);
 
   // The true solution vector xtrue
   for(size_t jj=0; jj<d; jj++){
@@ -104,12 +103,31 @@ int main() {
   	// Compute the Neumann sum up to Nit powers of G starting from b
   	x = b;
   	y = b;
-  	
+
+
+    compressor.compress(y, m);
+
+    // y.print();
+
   	for (size_t jj=0; jj<Nit; jj++){
-  		compressor.compress(y, m);
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
+
+      // A.print_ccs();
+      // y.print();
+
+      for(size_t ii=0; ii<m; ii++){
+        col_budgets[ii] = 1;
+      }
+      resample_piv(col_budgets, m, &generator);
+
+      compressor.compress_cols(A, col_budgets);
+
+      A.row_sums(y);
+
+      // A.print_ccs();
+      // y.print();
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
