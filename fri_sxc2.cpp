@@ -133,7 +133,7 @@ int main() {
             //std::cout<<kk<<std::endl;
             if ( abs((A.get_row_entry(ii,kk)).val)>valmax ){
               A.set_row_value(ii,nummax,0);
-              valmax = abs((A.get_row_entry(ii,0)).val);
+              valmax = abs((A.get_row_entry(ii,kk)).val);
               nummax = kk;
             }
             else{
