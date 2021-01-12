@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
-#include "fri_4.h"
+#include "fri_5.h"
 
 using namespace std;
 
@@ -28,7 +28,7 @@ int A1column(SparseVector<long, double> &col, const long jj, const size_t d){
 
 int main() {
   size_t d = 200;         // full dimension 
-  size_t Nspls = 1<<12;      // number of independent samples of the estimator to generate
+  size_t Nspls = 1<<10;      // number of independent samples of the estimator to generate
   size_t Nit = 20;      // number of iterations after burn in
   size_t m = 50;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
@@ -104,12 +104,18 @@ int main() {
   	// Compute the Neumann sum up to Nit powers of G starting from b
   	x = b;
   	y = b;
+
   	
   	for (size_t jj=0; jj<Nit; jj++){
   		compressor.compress(y, m);
+
+      y.print();
+
       sparse_colwisemv(A1column, d, bw, y, A);
     	A.row_sums(y);
       x += y;
+
+      x.print();
   	}
 
   	// Update the bias vector and compute the l2 error of the approximate solution.
