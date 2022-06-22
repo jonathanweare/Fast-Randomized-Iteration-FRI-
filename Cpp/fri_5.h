@@ -103,9 +103,6 @@ struct spmatcomparebycolidxfirst;
 template <typename IdxType, typename ValType>
 class SparseVector {
 public:
-  // Number of nonzero entries that could be in the vector.
-  // Must not change.
-  const size_t max_size_;
 
   // norm() returns the sum of the current entry magnitudes.
   inline const ValType norm() const;
@@ -117,11 +114,15 @@ public:
   // allocating space for that many SparseEntry structs.
   SparseVector(size_t max_size);
 
+  SparseVector();
+
   void remove_zeros();
 
   inline void clear();
 
   inline const size_t size() const {return curr_size_;}
+
+  inline const size_t capacity() const {return max_size_;}
 
   //void normalize();
 
@@ -142,6 +143,8 @@ public:
 
   inline ValType dot(const SparseVector<IdxType, ValType> &other);
 
+  inline void allocate(size_t max_size);
+
   // Accessors for the underlying vector so one can do
   // some of the normal vector manipulation, but not all.
   // Specifically, subscripting and iterator begin and end
@@ -158,6 +161,10 @@ public:
   inline spvec_iterator end() {return entries_.begin() + curr_size_;}
 
 private:
+  // Number of nonzero entries that could be in the vector.
+  // Can't be changed by user.
+  size_t max_size_;
+
   // Number of nonzero entries actually in the vector.
   size_t curr_size_;
   // Do not allow manual resizing and pushing/popping of the entries vector.
@@ -362,6 +369,15 @@ inline const ValType SparseVector<IdxType, ValType>::sum() const {
   return sum;
 }
 
+
+
+
+
+
+
+
+
+
   // Constructor taking max_size as an argument and 
   // allocating space for that many SparseVectorEntry structs.
 template <typename IdxType, typename ValType>
@@ -369,6 +385,31 @@ inline SparseVector<IdxType, ValType>::SparseVector(size_t max_size) : max_size_
   curr_size_ = 0;
   entries_ = std::vector<SparseVectorEntry<IdxType, ValType>>(max_size);
 }
+
+  // Constructor taking max_size as an argument and 
+  // allocating space for that many SparseVectorEntry structs.
+template <typename IdxType, typename ValType>
+inline SparseVector<IdxType, ValType>::SparseVector(){
+  max_size_ = 0;
+}
+
+
+
+
+template <typename IdxType, typename ValType>
+inline void SparseVector<IdxType, ValType>::allocate(size_t max_size){
+  max_size_ = max_size;
+
+  curr_size_ = 0;
+  entries_ = std::vector<SparseVectorEntry<IdxType, ValType>>(max_size);
+
+  return;
+}
+
+
+
+
+
 
 template <typename IdxType, typename ValType>
 inline void SparseVector<IdxType, ValType>::clear() {
@@ -380,6 +421,12 @@ inline void SparseVector<IdxType, ValType>::clear() {
   // max size & other entries unchanged.
 template <typename IdxType, typename ValType>
 inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator=(const SparseVector<IdxType, ValType> &other) {
+
+  if(max_size_==0){
+    max_size_ = other.max_size_;
+    entries_ = std::vector<SparseVectorEntry<IdxType, ValType>>(max_size_);
+  }
+
   assert(other.curr_size_ <= max_size_);
   curr_size_ = 0;
   for (size_t ii = 0; ii < other.curr_size_; ii++) {
@@ -390,6 +437,11 @@ inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator=
   }
   return *this;
 }
+
+
+
+
+
 
 template <typename IdxType, typename ValType>
 inline SparseVector<IdxType, ValType>& SparseVector<IdxType, ValType>::operator*=(const ValType alpha){
@@ -919,17 +971,13 @@ inline ValType SparseVector<IdxType, ValType>::dot(const SparseVector<IdxType, V
 template <typename IdxType, typename ValType>
 class SparseMatrix {
 public:
-  
-  // Number of nonzero entries that could be in the vector.
-  // Must not change.
-  const size_t max_size_;
-
-  // Max number of rows and columns.
-  const size_t max_cols_, max_rows_, max_rowcol_nnz_;
 
   // Constructor taking max_rows, max_cols, and max_size as an argument and 
   // allocating space for that many SparseMatrixEntry structs.
   SparseMatrix(size_t max_rows, size_t max_cols, size_t max_rowcol_nnz);
+  SparseMatrix();
+
+  inline void allocate(size_t max_rows, size_t max_cols, size_t max_rowcol_nnz);
 
   // Assignment by value up to current size, leaving
   // max size & other entries unchanged.
@@ -980,7 +1028,7 @@ public:
 
   // Add a new row to the matrix.  If there's already a row with index idx
   // it is replaced.
-  //inline void set_row(const SparseVector<IdxType,ValType>& other, const IdxType idx);
+  inline void set_row(const SparseVector<IdxType,ValType>& other, const IdxType idx);
 
   inline void scale_col(const size_t col_num, const ValType a);
 
@@ -1060,6 +1108,14 @@ public:
   inline spmat_iterator end() {return entries_.begin() + curr_size_;}
 
 private:
+  // Number of nonzero entries that could be in the vector.
+  // Must not change.
+  size_t max_size_;
+
+  // Max number of rows and columns.
+  size_t max_cols_, max_rows_, max_rowcol_nnz_;
+
+
   // Number of nonzero entries actually in the vector.
   size_t curr_size_;
   // Number of rows and columns.
@@ -1075,7 +1131,9 @@ private:
   std::vector<size_t> col_lens_;    // the position (in column-first order) of the end of each column
   std::vector<size_t> counter_;
   inline void inject_col(const size_t col_num);
+  inline void inject_row(const size_t row_num);
   inline void fill_col(const size_t col_num, const IdxType idx, const SparseVector<IdxType,ValType>& other);
+  inline void fill_row(const size_t row_num, const IdxType idx, const SparseVector<IdxType,ValType>& other);
   inline void swap_entries(const size_t ii, const size_t jj);
   bool is_crs_sorted_;
   bool is_ccs_sorted_;
@@ -1183,6 +1241,47 @@ inline SparseMatrix<IdxType, ValType>::SparseMatrix(size_t max_rows, size_t max_
 
   is_crs_sorted_ = true;
   is_ccs_sorted_ = true;
+}
+
+
+
+// Constructor taking max_size as an argument and 
+// allocating space for that many SparseVectorEntry structs.
+template <typename IdxType, typename ValType>
+inline SparseMatrix<IdxType, ValType>::SparseMatrix(){
+  max_size_ = 0;
+}
+
+
+
+
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::allocate(size_t max_rows, size_t max_cols, size_t max_rowcol_nnz){
+
+  max_size_ = std::min(max_cols,max_rows)*max_rowcol_nnz;
+  max_rows_ = max_rows;
+  max_cols_ = max_cols;
+  max_rowcol_nnz_ = max_rowcol_nnz;
+  
+  curr_size_ = 0;
+  n_rows_ = 0;
+  n_cols_ = 0;
+  entries_ = std::vector<SparseMatrixEntry<IdxType, ValType>>(std::min(max_rows,max_cols)*max_rowcol_nnz);
+  inv_ccs_order_ = std::vector<size_t>(std::min(max_rows,max_cols)*max_rowcol_nnz);
+  inv_crs_order_ = std::vector<size_t>(std::min(max_rows,max_cols)*max_rowcol_nnz);
+  crs_order_ = std::vector<size_t>(max_rows*max_rowcol_nnz);
+  ccs_order_ = std::vector<size_t>(max_cols*max_rowcol_nnz);
+  row_lens_ = std::vector<size_t>(max_rows,0);
+  col_lens_ = std::vector<size_t>(max_cols,0);
+  counter_ = std::vector<size_t>( std::max(max_rows,max_cols) );
+
+  std::iota(counter_.begin(),counter_.end(),0);
+
+
+  is_crs_sorted_ = true;
+  is_ccs_sorted_ = true;
+
+  return;
 }
 
 
@@ -1541,6 +1640,54 @@ inline void SparseMatrix<IdxType, ValType>::inject_col(const size_t col_num){
   return;
 }
 
+
+
+
+
+
+// Add in a new empty column.  Does not check for whether the column is new or whether it's being
+// placed in the correct position (that's why it's private).
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::inject_row(const size_t row_num){
+  assert(row_num<=n_rows_);
+  assert(n_rows_<max_rows_);
+
+  size_t ii, jj, row_head, row_end;
+
+  //print_ccs();
+
+  if (n_rows_>0){
+    for( jj=n_rows_; jj>row_num; jj--){      // shift columns with larger index backward to create space for new column
+      row_head = (jj-1)*max_rowcol_nnz_;
+      row_end = row_head+row_lens_[jj-1];
+      for( ii=row_head; ii<row_end; ii++){
+        inv_crs_order_[crs_order_[ii]] += max_rowcol_nnz_;
+      }
+      if( row_end>row_head ){
+        std::move_backward(crs_order_.begin()+row_head,
+          crs_order_.begin()+row_end,crs_order_.begin()+row_end+max_rowcol_nnz_);
+        row_lens_[jj] = row_lens_[jj-1];
+      }
+    }
+  }
+
+  row_lens_[row_num] = 0;
+
+  n_rows_++;
+
+  //print_ccs();
+
+  is_ccs_sorted_ = false;
+
+  return;
+}
+
+
+
+
+
+
+
 // Removes a column from the matrix.
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::eject_col(const size_t col_num){
@@ -1658,6 +1805,55 @@ inline void SparseMatrix<IdxType, ValType>::fill_col(const size_t col_num, const
 
   return;
 }
+
+
+
+
+
+
+
+
+
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::fill_row(const size_t row_num, const IdxType idx, const SparseVector<IdxType, ValType>& other){
+  assert(row_num<n_rows_);
+
+  clear_row(row_num);
+
+  assert( curr_size_+other.size()<=max_size_);
+  assert( other.size()<=max_rowcol_nnz_);
+
+  size_t row_head = row_num*max_rowcol_nnz_;
+  size_t row_end = row_head + other.size();
+
+  //print_ccs();
+
+  for (size_t jj=0; jj<other.size(); jj++){
+    entries_[curr_size_+jj].rowidx = idx;
+    entries_[curr_size_+jj].colidx = other[jj].idx;
+    entries_[curr_size_+jj].val = other[jj].val;
+    //std::cout<<idx<<" "<<other[jj].idx<<" "<<other[jj].val<<std::endl;
+  }
+
+  row_lens_[row_num] = other.size();
+
+  //std::cout<<curr_size_<<" "<< col_head<<" "<<col_end<<" "<<other.size()<<std::endl;
+
+  std::iota(crs_order_.begin()+row_head,crs_order_.begin()+row_end,curr_size_);
+  std::iota(inv_crs_order_.begin()+curr_size_,inv_crs_order_.begin()+curr_size_+other.size(),row_head);
+
+  curr_size_ += other.size();
+
+  is_ccs_sorted_ = false;
+
+  return;
+}
+
+
+
+
+
+
 
 
 
@@ -1990,6 +2186,100 @@ inline void SparseMatrix<IdxType, ValType>::set_col(const SparseVector<IdxType, 
 
 
 
+// Add a sparse vector as a column to a sparse matrix.
+// If the matrix already has that column it is replaced.
+// This leaves the matrix CCS ordered, but destroys CRS ordering.
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::set_row(const SparseVector<IdxType, ValType>& other, const IdxType idx){
+
+  size_t row_num;
+
+  if (!is_crs_sorted_)
+    sort_crs();
+
+  if (curr_size_==0){                    // is the matrix empty?
+
+    row_num = 0;
+
+    assert(other.size()>0);  // last column can't be empty
+
+    inject_col(row_num);
+    fill_col(row_num,idx,other);
+
+    size_t col_head;
+
+    for(size_t jj=0; jj<other.size(); jj++ ){          // because it's the first column we preserve row ordering too
+      col_head = jj*max_rowcol_nnz_;
+      col_lens_[jj] = 1;
+      ccs_order_[col_head] = jj;
+      inv_ccs_order_[jj] = col_head;
+    }
+    n_cols_ = other.size();
+    is_ccs_sorted_ = true;
+
+    return;
+  }
+
+  is_ccs_sorted_ = false;
+
+  size_t row_head, row_end;
+
+  if ( idx > entries_[crs_order_[(n_rows_-1)*max_rowcol_nnz_]].rowidx ){                // will this be the largest column index
+    assert(other.size()>0); 
+    row_num = n_rows_;                           // last column can't be empty
+    inject_row(row_num); 
+  }
+  else{                                                              // this won't be the largest column index
+
+    row_num = locate_row(idx);
+    while( row_lens_[row_num]==0 ){
+      row_num++;
+    }
+    assert(row_num<n_rows_);
+
+    // std::cout<<col_num<<std::endl;
+
+    row_head = row_num*max_rowcol_nnz_;
+    row_end = row_head + row_lens_[row_num];
+
+    assert(row_head<row_end);
+    assert(row_lens_[row_num]>0);
+
+    if (entries_[crs_order_[row_head]].rowidx == idx){                 // this replaces an existing column
+      // std::cout<<col_num<<" "<<n_cols_<<std::endl;
+      // print_ccs();
+      clear_row(row_num);
+      if(row_num>=n_rows_){
+        row_num=n_rows_;
+        inject_row(row_num);
+      }
+      // print_ccs();
+      // std::cout<<curr_size_<<" "<<n_cols_<<std::endl;
+    }
+    else if ( row_num>0 and row_lens_[row_num-1]==0 ){                          // there's already an empty column in the right position
+      //std::cout<<col_num<<col_lens_[col_num-1]<<std::endl;
+      row_num--;
+    }           
+    else{                                                         // we need to insert a new column in the right position
+      //std::cout<<col_num<<" "<<n_cols_<<std::endl;
+      inject_row(row_num);
+    }
+
+    // std::cout<<"out"<<std::endl;
+    // std::cout<<std::endl;
+  }
+  fill_row(row_num,idx,other);
+
+  return;
+}
+
+
+
+
+
+
+
+
 // Add a sparse vector as a row to a sparse matrix.
 // If the matrix already has that column it is replaced.
 // This leaves the matrix CRS ordered, but destroys CCS ordering.
@@ -2246,7 +2536,7 @@ inline void SparseMatrix<IdxType, ValType>::row_sums(std::vector<ValType>& sums)
 
 template <typename IdxType, typename ValType>
 inline void SparseMatrix<IdxType, ValType>::row_sums(SparseVector<IdxType,ValType>& sums){
-  assert(sums.max_size_>=n_rows_);
+  assert(sums.capacity()>=n_rows_);
 
   if(!is_crs_sorted_)
     sort_crs();
@@ -2332,6 +2622,48 @@ inline void SparseMatrix<IdxType, ValType>::col_norms(std::vector<ValType>& norm
 
   return;
 }
+
+
+
+
+
+
+
+template <typename IdxType, typename ValType>
+inline void SparseMatrix<IdxType, ValType>::row_norms(std::vector<ValType>& norms){
+
+  // std::cout<<norms.capacity()<<" "<<n_cols_<<std::endl;
+
+  assert(norms.capacity()>=n_rows_);
+
+  if(!is_crs_sorted_)
+    sort_crs();
+
+  SparseVectorEntry<IdxType,ValType> e;
+
+  size_t  row_head, row_end;
+
+  for( size_t jj = 0; jj<n_rows_; jj++){
+    if( row_lens_[jj]>0 ){
+      row_head = jj*max_rowcol_nnz_;
+      row_end = row_head + row_lens_[jj];
+      norms[jj] = abs(entries_[crs_order_[row_head]].val);
+      for( size_t ii = row_head+1; ii<row_end; ii++){
+        norms[jj] += abs(entries_[crs_order_[ii]].val);
+      }
+    }
+    else{
+      norms[jj] = 0;
+    }
+  }
+
+  return;
+}
+
+
+
+
+
 
 
 
@@ -2454,8 +2786,8 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
 {
   // Check for correct size; multiplication must not overflow.
 
-  assert(max_nz_col_entries<=B.max_rowcol_nnz_);
-  assert(x.size() <= B.max_cols_);
+  assert(max_nz_col_entries<=B.rowcol_capacity());
+  assert(x.size() <= B.max_cols());
 
   B.clear();
 
@@ -2470,7 +2802,7 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
     single_column_add *= x[jj].val;
     // single_column_add.print();
     // std::cout<< jj<<" "<<x.size()<<" "<<single_column_add.size()<<std::endl;
-    B.set_col(single_column_add,jj);
+    B.set_col(single_column_add,x[jj].idx);
     // B.print_ccs();
   }
 
@@ -2478,6 +2810,8 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
 
   return;
 }
+
+
 
 
 
@@ -2502,11 +2836,11 @@ inline void sparse_colwisemv(int (*Acolumn)(SparseVector<IdxType, ValType>&, con
 template <typename IdxType, typename ValType, class RNG>
 class Compressor {
 private:
-  
+
   // Temporary storage for an intermediate.
   // std::valarray<size_t> inds_;
-  std::valarray<double> xabs_;
-  std::valarray<bool> pres_;
+  std::vector<double> xabs_;
+  std::vector<bool> pres_;
   
   // Random number generator.
   RNG* gen_;
@@ -2515,8 +2849,6 @@ private:
   // Do not allow copying or assignment for compressors.
   Compressor<IdxType, ValType, RNG>(Compressor<IdxType, ValType, RNG> &);
   Compressor<IdxType, ValType, RNG>& operator= (Compressor<IdxType, ValType, RNG> &);
-
-  size_t nnz_;
   
   // Helper function: compress the internal 
   // vector of moduli.
@@ -2525,32 +2857,52 @@ private:
   // inline void compress_xabs_dmc(size_t target_nnz);
 
   inline const size_t preserve_xabs_(SparseVector<IdxType, ValType> &x, const size_t target_nnz);
+  inline const size_t preserve_xabs_(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz);
 
   inline void sample_xabs_(SparseVector<IdxType, ValType> &x, const size_t target_nnz);
+  inline void sample_xabs_(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz);
 
   inline size_t setup(SparseVector<IdxType, ValType> &x);
+  inline size_t setup(SparseMatrix<IdxType, ValType> &A);
 
 
 public:
 
+
   // Constructor based on maximum size of the
   // modulus vector and a random seed.
-  inline Compressor<IdxType, ValType, RNG>(size_t max_size, RNG& generator) :
+  inline Compressor<IdxType, ValType, RNG>(size_t max_size, RNG& generator) : 
     xabs_(max_size), pres_(max_size) {
     // Set up the pseudorandom number generator.
     gen_ = &generator;
     uu_ = std::uniform_real_distribution<>(0,1);
   }
+
+  Compressor();
+
+  inline void allocate(size_t max_size, RNG& generator){
+
+    xabs_ = std::vector<double>(max_size);
+    pres_ = std::vector<bool>(max_size);
+
+    gen_ = &generator;
+    uu_ = std::uniform_real_distribution<>(0,1);
+
+    return;
+  }
   
   // Compress a SparseVector using the stored
   // temp vector and pseudorandom number generator.
   inline void compress(SparseVector<IdxType, ValType> &x, const size_t target_nnz);
+  inline void compress(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz);
 
   inline void sample(SparseVector<IdxType, ValType> &x, const size_t ncopies);
+  inline void sample(SparseMatrix<IdxType, ValType> &A, const size_t ncopies);
 
   // Return a mask of the sparse vector indicating which entries should
   // be preserved exactly in a compression.
   inline const size_t preserve(SparseVector<IdxType, ValType> &x, const size_t target_nnz);
+  inline const size_t preserve(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz);
 
  
 };
@@ -2558,12 +2910,12 @@ public:
 
 
 template <class RNG>
-inline size_t sample_sys(std::valarray<double>& xabs_,const size_t target_nnz, RNG* gen_);
+inline size_t sample_sys(std::vector<double>& xabs_,const size_t target_nnz, RNG* gen_);
 
 template <class RNG>
-inline size_t sample_piv(std::valarray<double>& xabs_, RNG* gen_);
+inline size_t sample_piv(std::vector<double>& xabs_, RNG* gen_);
 
-inline size_t adjust(std::valarray<double>& xabs_,const size_t);
+inline size_t adjust(std::vector<double>& xabs_,const size_t);
 
 
 
@@ -2576,22 +2928,52 @@ using std::abs;
 
 
 template <typename IdxType, typename ValType, class RNG>
+inline Compressor<IdxType, ValType, RNG>::Compressor(){}
+
+
+
+template <typename IdxType, typename ValType, class RNG>
 inline size_t Compressor<IdxType, ValType, RNG>::setup(SparseVector<IdxType, ValType> &x) {
 
   xabs_.resize(x.size());
   pres_.resize(x.size());
 
-  double temp, Tol = 1e-9;
+  double Tol = 1e-9;
   size_t nnz=0;
 
   for(size_t jj=0;jj<x.size();jj++){
-    temp = abs(x[jj].val);
-    if( temp>Tol ){
-      xabs_[jj]=temp;
+    xabs_[jj] = abs(x[jj].val);
+    if( xabs_[jj]>Tol ){
       nnz++;
     }
     else{
       x.set_value(jj,0);
+      xabs_[jj]=0;
+    }
+  }
+
+  return nnz;
+}
+
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline size_t Compressor<IdxType, ValType, RNG>::setup(SparseMatrix<IdxType, ValType> &A) {
+
+  xabs_.resize(A.size());
+  pres_.resize(A.size());
+
+  double Tol = 1e-9;
+  size_t nnz=0;
+
+  for(size_t jj=0;jj<A.size();jj++){
+    xabs_[jj] = abs(A[jj].val);
+    if( xabs_[jj]>Tol ){
+      nnz++;
+    }
+    else{
+      A.set_value(jj,0);
       xabs_[jj]=0;
     }
   }
@@ -2610,9 +2992,9 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
   size_t nnz = setup(x);
 
   if( nnz <= target_nnz ){
-    pres_ = true;
-    xabs_ = 0;
-    x.remove_zeros();
+    std::fill(pres_.begin(), pres_.end(), true);
+    std::fill(xabs_.begin(), xabs_.end(), 0);
+    // x.remove_zeros();
     return;
   }
 
@@ -2622,10 +3004,10 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 
   size_t npres = preserve_xabs_(x,target_nnz);
 
-  std::cout<< nnz<< " " << npres << std::endl;
+  // std::cout<< nnz<< " " << npres << std::endl;
 
   if( npres == target_nnz){
-    x.remove_zeros();
+    // x.remove_zeros();
     return;
   }
 
@@ -2645,7 +3027,7 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
     }
   }
   // Remove the entries set to zero.
-  x.remove_zeros();
+  // x.remove_zeros();
   // The vector is now compressed.
   return;
 }
@@ -2655,7 +3037,53 @@ inline void Compressor<IdxType, ValType, RNG>::compress(SparseVector<IdxType, Va
 
 
 
+// Compress a SparseVector using the stored
+// temp vector and pseudorandom number generator.
+template <typename IdxType, typename ValType, class RNG>
+inline void Compressor<IdxType, ValType, RNG>::compress(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz) {
 
+  size_t nnz = setup(A);
+
+  if( nnz <= target_nnz ){
+    std::fill(pres_.begin(), pres_.end(), true);
+    std::fill(xabs_.begin(), xabs_.end(), 0);
+    // A.remove_zeros();
+    return;
+  }
+
+  // std::cout << nnz << " " << target_nnz << std::endl;
+
+  // std::cout << xabs_.sum() << std::endl;
+
+  size_t npres = preserve_xabs_(A,target_nnz);
+
+  // std::cout<< nnz<< " " << npres << std::endl;
+
+  if( npres == target_nnz){
+    // A.remove_zeros();
+    return;
+  }
+
+  size_t nnz_sample = target_nnz-npres;
+
+  sample_xabs_(A,nnz_sample);
+
+  for( size_t jj = 0; jj < A.size(); jj++){
+    // Find the corresponding member of x and
+    // set its modulus according to the modulus
+    // of xabs.
+    if( xabs_[jj]>0 ){
+      A.set_value(jj,(A[jj].val / abs(A[jj].val))*xabs_[jj]);
+    }
+    if( pres_[jj]==false and xabs_[jj]==0 ){
+      A.set_value(jj,0);
+    }
+  }
+  // Remove the entries set to zero.
+  // A.remove_zeros();
+  // The vector is now compressed.
+  return;
+}
 
 
 
@@ -2684,22 +3112,61 @@ inline void Compressor<IdxType, ValType, RNG>::sample(SparseVector<IdxType, ValT
 
 
 
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void Compressor<IdxType, ValType, RNG>::sample(SparseMatrix<IdxType, ValType> &A, const size_t ncopies) {
+
+  setup(A);
+
+  sample_xabs_(A,ncopies);
+
+  for( size_t jj = 0; jj < A.size(); jj++ ){
+    A.set_value(jj,(A[jj].val / abs(A[jj].val))*xabs_[jj]);
+  }
+  
+  return;
+}
+
+
+
+
+
+
+
 template <typename IdxType, typename ValType, class RNG>
 inline void Compressor<IdxType, ValType, RNG>::sample_xabs_(SparseVector<IdxType, ValType> &x, const size_t ncopies) {
 
-  double xabs_sum = xabs_.sum();
+  double xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
 
   assert(xabs_sum>0);
 
-  xabs_ *= (double)ncopies/xabs_sum;
+  // std::cout << xabs_.sum() << " " << ncopies << std::endl;
 
-  std::valarray<double> floor_vec(x.size());
-  std::valarray<double> select_vec(x.size());
+  // xabs_ *= (double)ncopies/xabs_sum;
+  std::transform(xabs_.begin(), xabs_.end(), xabs_.begin(), std::bind(std::multiplies<double>(), std::placeholders::_1, (double)ncopies/xabs_sum));
 
-  std::transform(&xabs_[0],&xabs_[x.size()]+1,&floor_vec[0],[](double &c){ return floor(c); });
-  select_vec = xabs_-floor_vec;
+  // std::cout << xabs_.sum() << " " << xabs_.size() << " " << x.size() << std::endl;
 
-  size_t nfloor = (size_t)std::accumulate(&floor_vec[0], &floor_vec[x.size()],0);
+  std::vector<double> floor_vec(x.size());
+  std::vector<double> select_vec(x.size());
+
+  for( size_t jj = 0; jj< x.size(); jj++ ){
+    floor_vec[jj] = floor(xabs_[jj]);
+  }
+
+  std::transform(xabs_.begin(),xabs_.end(),floor_vec.begin(),[](double &c){ return floor(c); });
+
+  // std::cout << xabs_.sum() << " " << floor_vec.sum() << std::endl;
+
+  std::transform(xabs_.begin(),xabs_.end(),floor_vec.begin(), select_vec.begin(),[](double &a, double &b){ return a-b; });
+
+  // select_vec = xabs_-floor_vec;
+
+  size_t nfloor = (size_t)std::accumulate(floor_vec.begin(), floor_vec.end(),decltype(floor_vec)::value_type(0));
+
+  // std::cout << xabs_.sum() << " " << select_vec.sum() << std::endl;
 
   // Resample the remaining entries.
   sample_piv(select_vec, gen_);
@@ -2718,18 +3185,104 @@ inline void Compressor<IdxType, ValType, RNG>::sample_xabs_(SparseVector<IdxType
 }
 
 
+
+
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void Compressor<IdxType, ValType, RNG>::sample_xabs_(SparseMatrix<IdxType, ValType> &A, const size_t ncopies) {
+
+  double xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
+
+  assert(xabs_sum>0);
+
+  // std::cout << xabs_.sum() << " " << ncopies << std::endl;
+
+  // xabs_ *= (double)ncopies/xabs_sum;
+  std::transform(xabs_.begin(), xabs_.end(), xabs_.begin(), std::bind(std::multiplies<double>(), std::placeholders::_1, (double)ncopies/xabs_sum));
+
+  // std::cout << xabs_.sum() << " " << xabs_.size() << " " << x.size() << std::endl;
+
+  std::vector<double> floor_vec(A.size());
+  std::vector<double> select_vec(A.size());
+
+  for( size_t jj = 0; jj< A.size(); jj++ ){
+    floor_vec[jj] = floor(xabs_[jj]);
+  }
+
+  std::transform(xabs_.begin(),xabs_.end(),floor_vec.begin(),[](double &c){ return floor(c); });
+
+  // std::cout << xabs_.sum() << " " << floor_vec.sum() << std::endl;
+
+  std::transform(xabs_.begin(),xabs_.end(),floor_vec.begin(), select_vec.begin(),[](double &a, double &b){ return a-b; });
+
+  // select_vec = xabs_-floor_vec;
+
+  size_t nfloor = (size_t)std::accumulate(floor_vec.begin(), floor_vec.end(),decltype(floor_vec)::value_type(0));
+
+  // std::cout << xabs_.sum() << " " << select_vec.sum() << std::endl;
+
+  // Resample the remaining entries.
+  sample_piv(select_vec, gen_);
+  //resample_sys(xabs_resample,target_nnz-nnz_large, gen_);
+  //xabs_resample *= xabs_sum/(double)(target_nnz-nnz_large);
+
+  // compress_xabs_sys(target_nnz-nnz_large);
+  // Translate the compression of the moduli vector to
+  // a compression of the input vector. For each entry
+  // of the compressed xabs,
+  for( size_t jj = 0; jj < A.size(); jj++){
+    xabs_[jj] = (xabs_sum/(double)ncopies)*(floor_vec[jj]+select_vec[jj]);
+  }
+  
+  return;
+}
+
+
+
+
+
+
+
+
 template <typename IdxType, typename ValType, class RNG>
 inline const size_t Compressor<IdxType, ValType, RNG>::preserve(SparseVector<IdxType, ValType> &x, const size_t target_nnz) {
 
   size_t nnz = setup(x);
 
   if( nnz <= target_nnz ){
-    pres_ = true;
-    xabs_ = 0;
+    std::fill(pres_.begin(), pres_.end(), true);
+    std::fill(xabs_.begin(), xabs_.end(), 0);
+    return nnz;
   }
 
   return preserve_xabs_(x);
 }
+
+
+
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline const size_t Compressor<IdxType, ValType, RNG>::preserve(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz) {
+
+  size_t nnz = setup(A);
+
+  if( nnz <= target_nnz ){
+    std::fill(pres_.begin(), pres_.end(), true);
+    std::fill(xabs_.begin(), xabs_.end(), 0);
+    return nnz;
+  }
+
+  return preserve_xabs_(A);
+}
+
+
+
+
+
 
 
 // Return the indices of the sparse vector that should
@@ -2746,10 +3299,10 @@ inline const size_t Compressor<IdxType, ValType, RNG>::preserve_xabs_(SparseVect
 
   // std::cout << xabs_.sum() <<std::endl;
 
-  pres_ = false;
+  std::fill(pres_.begin(), pres_.end(), false);
   bool done = false;
   npos = 0;
-  xabs_sum = xabs_.sum();
+  xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
   while( !done and target_nnz>npos and xabs_sum>0){
     scale = xabs_sum/(target_nnz-npos);
     done = true;
@@ -2785,45 +3338,55 @@ inline const size_t Compressor<IdxType, ValType, RNG>::preserve_xabs_(SparseVect
 
 
 
-// template <typename IdxType, typename ValType, class RNG>
-// class FRIiter {
-// public:
-//   // Number of nonzero entries that could be in the vector.
-//   // Must not change.
-//   const size_t max_size_;
-
-//   // Constructor taking max_size as an argument and 
-//   // allocating space for that many SparseEntry structs.
-//   FRIiter(size_t max_size);
-
-//   void remove_zeros();
-
-//   inline void clear();
-
-//   inline const size_t size() const {return curr_size_;}
-
-//   //void normalize();
-
-//   inline void print();
-
-//   // Assignment by value up to current size, leaving
-//   // max size & other entries unchanged.
-//   inline FRIiter<IdxType, ValType>& operator=(const SparseVector<IdxType, ValType> &other);
-
-//   SparseVector<IdxType, ValType> vector;
-
-  
-
-// private:
-//   // Number of nonzero entries actually in the vector.
-//   size_t curr_size_;
-//   // Do not allow manual resizing and pushing/popping of the entries vector.
-//   std::vector<size_t> split_times_;
-// };
 
 
 
+// Return the indices of the sparse vector that should
+// be preserved in a compression.
+template <typename IdxType, typename ValType, class RNG>
+inline const size_t Compressor<IdxType, ValType, RNG>::preserve_xabs_(SparseMatrix<IdxType, ValType> &A, const size_t target_nnz) {
 
+  // if x already has less than target_nnz non-zero entries this 
+  // is a do nothing routine.
+
+
+  double xabs_sum, scale;
+  size_t npos, npres;
+
+  // std::cout << xabs_.sum() <<std::endl;
+
+  std::fill(pres_.begin(), pres_.end(), false);
+  bool done = false;
+  npos = 0;
+  xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
+  while( !done and target_nnz>npos and xabs_sum>0){
+    scale = xabs_sum/(target_nnz-npos);
+    done = true;
+    xabs_sum = 0;
+    npos = 0;
+    npres = 0;
+    for( size_t kk=0; kk<A.size(); kk++ ){
+      if( xabs_[kk]>=scale ){
+        done = false;
+        pres_[kk] = true;
+        xabs_[kk] = 0;
+      }
+      if( pres_[kk]==true ){
+        npos++;
+      }
+      if( xabs_[kk]==0 ){
+        npres++;
+      }
+      xabs_sum += xabs_[kk];
+    }
+  }
+
+  assert( npos<=target_nnz );
+
+  // std::cout<<"here: "<<npos<<std::endl;
+
+  return npres;
+}
 
 
 
@@ -2837,13 +3400,15 @@ inline const size_t Compressor<IdxType, ValType, RNG>::preserve_xabs_(SparseVect
 
 
 template <class RNG>
-inline size_t sample_sys(std::valarray<double>& xabs_,const  size_t target_nnz, RNG* gen_) {
+inline size_t sample_sys(std::vector<double>& xabs_,const  size_t target_nnz, RNG* gen_) {
 
-  double xabs_sum=xabs_.sum();
+  double xabs_sum;
+
+  xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
 
   assert(xabs_sum==(double)target_nnz);
 
-  assert(xabs_.max()<=1.0);
+  assert(*std::max_element(xabs_.begin(),xabs_.end())<=1.0);
 
   std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
 
@@ -2902,9 +3467,9 @@ inline size_t sample_sys(std::valarray<double>& xabs_,const  size_t target_nnz, 
 
 
 template <class RNG>
-inline size_t sample_piv(std::valarray<double>& xabs_, RNG* gen_) {
+inline size_t sample_piv(std::vector<double>& xabs_, RNG* gen_) {
 
-  double xabs_sum=xabs_.sum();
+  double xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
 
   
 
@@ -3009,9 +3574,11 @@ inline size_t sample_piv(std::valarray<double>& xabs_, RNG* gen_) {
 
 
 
-inline size_t adjust(std::valarray<double>& xabs_, const size_t up) {
+inline size_t adjust(std::vector<double>& xabs_, const size_t up) {
 
-  double xabs_sum=xabs_.sum(), xabs_max=xabs_.max(), xabs_min=xabs_.min();
+  double xabs_sum = std::accumulate(xabs_.begin(), xabs_.end(), 0.0);
+  double xabs_max = *std::max_element(xabs_.begin(),xabs_.end());
+  double xabs_min = *std::min_element(xabs_.begin(),xabs_.end());
 
   if (xabs_sum==0){
     return 0;
@@ -3043,7 +3610,7 @@ inline size_t adjust(std::valarray<double>& xabs_, const size_t up) {
   // std::cout<<xabs_max<<" "<<cl<<" "<<xabs_sum<<std::endl;
 
   if(xabs_max*cl/xabs_sum<=1.0){
-    xabs_ *= (fl+up)/xabs_sum;
+    std::transform(xabs_.begin(), xabs_.end(), xabs_.begin(), std::bind(std::multiplies<double>(), std::placeholders::_1, (double)(fl+up)/xabs_sum));
     return 0;
   }
 
@@ -3098,101 +3665,233 @@ return 0;
 
 
 
-// template <class RNG>
-// inline size_t resample_piv_new(std::valarray<double>& xabs_, const std::slice myslice, const size_t target_nnz, RNG* gen_) {
 
-//   assert(myslice.size()<=xabs_.size());
 
-//   double xabs_sum = (xabs_[myslice]).sum();
 
-//   if( xabs_sum==0 ){
-//     return 0;
-//   }
 
-//   std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
 
-//   xabs_[firstn] *= (double)target_nnz/xabs_sum;
+template <typename IdxType, typename ValType, class RNG>
+class FRIiter {
+public:
 
-//   //std::cout<<target_nnz<<std::endl;
+  // Constructor taking max_size as an argument and 
+  // allocating space for that many SparseEntry structs.
+  FRIiter(size_t max_size, RNG& generator);
 
-//   size_t ii = 0;
-//   size_t jj = 1;
-//   size_t kk = 2;
-//   double a=xabs_[0]-floor(xabs_[myslice[0]]), b=xabs_[myslice[1]]-floor(xabs_[myslice[1]]);
-//   double EPS = 1e-9;
+  inline void clear();
 
-//   // for(size_t ll=0; ll<xabs_.size(); ll++)
-//   //   std::cout<<ll<<" "<<xabs_[ll]<<std::endl;
-//   //std::cout <<xabs_.sum()<<std::endl;
+  inline const size_t size() const {return curr_size_;}
 
-//   while( kk< n ){
-//     //std::cout<<kk<<" "<<ii<<" "<<jj<<" "<<a<<" "<<b<<" "<<xabs_[kk]<<std::endl;
-//     if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
-//       if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
-//         b+=a-1.0;
-//         a=1.0;
-//       }
-//       else{
-//         a+=b-1.0;
-//         b=1.0;
-//       }
-//     }
-//     if ( a>=EPS and b<=1.0-EPS and a+b<=1.0 ){
-//       if ( uu_(*gen_)< b/(a+b) ){
-//         b+=a;
-//         a=0;
-//       }
-//       else{
-//         a+=b;
-//         b=0;
-//       }
-//     }
-//     if ( (a<EPS or a>1.0-EPS) and kk<myslice.size() ){
-//       //std::cout<<a<<" "<<b<<std::endl;
-//       xabs_[ii] = round(a + floor(xabs_[ii]));
-//       a = xabs_[kk] - floor(xabs_[kk]);
-//       ii = kk;
-//       kk++;
-//     }
-//     if ( (b<EPS or b>1.0-EPS) and kk<xabs_.size() ){
-//       //std::cout<<a<<" "<<b<<std::endl;
-//       xabs_[jj]= round(b + floor(xabs_[jj]));
-//       b = xabs_[kk] - floor(xabs_[kk]);
-//       jj = kk;
-//       kk++;
-//     }
-//   }
+  //void normalize();
 
-//   //std::cout<<a<<" "<<b<<std::endl;
-//   if( a>=EPS and b<=1.0-EPS and a+b>1.0 ){
-//     if( uu_(*gen_)<(1.0-b)/(2.0-a-b) ){
-//       b+=a-1.0;
-//       a=1.0;
-//     }
-//     else{
-//       a+=b-1.0;
-//       b=1.0;
-//     }
-//   }
-//   if ( a>=EPS and b<=1.0-EPS and a+b<=1.0 ){
-//     if( uu_(*gen_)<b/(a+b) ){
-//       b+=a;
-//       a=0;
-//     }
-//     else{
-//       a+=b;
-//       b=0;
-//     }
-//   }
-//   xabs_[ii] = round(a + floor(xabs_[ii]));
-//   xabs_[jj] = round(b + floor(xabs_[jj]));
+  inline void print();
 
-//   return 0;
+  inline void set_vector(const SparseVector<IdxType,ValType>& other);
+
+  inline void get_vector(SparseVector<IdxType,ValType>& other);
+
+  // inline const IdxType get_parents(const size_t ent_num);
+
+  inline void compress(size_t m);
+
+  inline void remove_zeros();
+
+  inline void assign_parents(SparseMatrix<IdxType,ValType>& A);
+
+  inline const SparseVectorEntry<IdxType,ValType>& operator[](const size_t ent_num) const {assert(ent_num<curr_size_); return state_[ent_num];}
+
+  // Assignment by value up to current size, leaving
+  // max size & other entries unchanged.
+  // inline FRIiter<IdxType, ValType>& operator=(const SparseVector<IdxType, ValType> &other);
+
+
+private:
+  // Number of nonzero entries that could be in the vector.
+  // Must not be changed by user.
+  size_t max_size_;
+
+  // Number of nonzero entries actually in the vector.
+  size_t curr_size_;
+  // Do not allow manual resizing and pushing/popping of the entries vector.
+  std::vector<size_t> split_times_;
+
+  SparseVector<IdxType, ValType> state_;
+
+  // SparseVector<IdxType, ValType> vector_;
+
+  Compressor<IdxType, ValType, RNG> compressor_;
+
+  RNG* gen_;
+
+};
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline FRIiter<IdxType, ValType, RNG>::FRIiter(size_t max_size, RNG& generator) : max_size_(max_size) {
+
+  gen_ = &generator;
+  curr_size_ = 0;
+  split_times_ = std::vector<size_t>(max_size*max_size);
+  state_.allocate(max_size);
+  compressor_.allocate(max_size, generator);
+
+  std::fill(split_times_.begin(),split_times_.end(),0);
+}
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::clear() {
+  curr_size_ = 0;
+  state_.clear();
+  return;
+}
+
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::print() {
+  state_.print();
+  
+  return;
+}
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::compress(size_t m) {
+  
+  compressor_.compress(state_,m);
+  
+  return;
+}
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::remove_zeros() {
+
+  state_.remove_zeros();
+
+  curr_size_ = state_.size();
+  
+  return;
+}
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::set_vector(const SparseVector<IdxType,ValType>& other){
+
+  assert(max_size_>=other.size());
+
+  state_ = other;
+
+  // std::fill(split_times_.begin(), split_times_.end(),0);
+
+  return;
+}
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::get_vector(SparseVector<IdxType,ValType>& other){
+
+  assert(curr_size_<=other.capacity());
+
+  other = state_;
+
+  return;
+}
+
+
+
+// template <typename IdxType, typename ValType, class RNG>
+// inline const IdxType FRIiter<IdxType, ValType, RNG>::get_parents(const size_t ent_num){
+
+//   assert(ent_num< curr_size_);
+
+//   e = get_row_entry(ent_num, 0);
+
+//   return e.col_idx;
 // }
 
 
 
 
+
+
+
+
+
+
+
+template <typename IdxType, typename ValType, class RNG>
+inline void FRIiter<IdxType, ValType, RNG>::assign_parents(SparseMatrix<IdxType, ValType> &A) {
+
+  if(!A.check_crs_sorted())
+    A.sort_crs();
+
+  std::vector<ValType> p(A.rowcol_capacity());
+  std::valarray<double> p_abs(A.rowcol_capacity());
+
+  std::uniform_real_distribution<> uu_=std::uniform_real_distribution<>(0,1);
+
+  ValType rowsum;
+  double rowabssum;
+  double U;
+  double S;
+  size_t kk;
+
+  for( size_t ii = 0; ii<A.nrows(); ii++){
+    if (A.row_size(ii)>0){
+      A.get_all_row_values(ii,p);
+      A.set_all_row_values(ii,0);
+      rowsum = 0;
+      rowabssum = 0;
+      for(size_t jj=0; jj<A.row_size(ii); jj++){
+        p_abs[jj] = abs(p[jj]);
+        if( p_abs[jj]<1e-9 ){
+          p_abs[jj]=0;
+          p[jj]=0;
+        }
+        rowabssum += p_abs[jj];
+        rowsum += p[jj];
+      }
+      // assert(rowabssum>0);
+      if(rowabssum>0){
+        U = rowabssum*uu_(*gen_);
+        S = p_abs[0];
+        kk = 0;
+        // std::cout<<A.row_size(ii)<<" "<<U<<" "<<rowsum<<std::endl;
+        while( S<U ){
+          kk++;
+          assert(kk<A.row_size(ii));
+          S+=p_abs[kk];
+        }
+        // std::cout<<kk<<" "<<A.row_size(ii)<<" "<<S<<" "<<U<<std::endl;
+        A.set_row_value(ii,kk,rowsum);
+      }
+    }
+  }
+
+  return;
+}
+
+
+
+
+
+
+
+// template <typename IdxType, typename ValType, class RNG>
+// inline void FRIiter<IdxType, ValType, RNG>::update_split_times(){
+
+
+//   for(size_t jj=0; jj<curr_size_; jj++){
+//     for(size_t ii=jj+1; ii<curr_size_; ii++){
+
+//     }
+//   }
+
+// }
 
 
 

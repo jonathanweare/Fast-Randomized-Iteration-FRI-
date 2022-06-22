@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <math.h>
+#include <type_traits>
 #include "fri_5.h"
 
 using namespace std;
@@ -13,7 +14,7 @@ using namespace std;
 // the matrix of interest
 int RW1dcolumn(SparseVector<long, double> &col, const long jj, const size_t d){
 
-  assert(2<=col.max_size_);
+  assert(2<=col.capacity());
 
   if(jj>0 and jj<d-1){
     col.set_entry(jj-1,0.5);
@@ -28,9 +29,9 @@ int RW1dcolumn(SparseVector<long, double> &col, const long jj, const size_t d){
 
 
 int main() {
-  size_t d = 10;         // full dimension 
-  size_t Nspls = 1<<0;      // number of independent samples of the estimator to generate
-  size_t Nit = (size_t)floor(7);      // number of iterations after burn in
+  size_t d = 20;         // full dimension 
+  size_t Nspls = 1<<14;      // number of independent samples of the estimator to generate
+  size_t Nit = (size_t)floor(d*d);      // number of iterations after burn in
   size_t m = 4;      // compression parameter (after compression vectors have
                          // no more than m non-zero entries)
   size_t bw = 2;         // upper bound on the number of entries in any
@@ -41,23 +42,18 @@ int main() {
   SparseMatrix<long, double> A(bw*m,m,bw);
   SparseVector<long, double> b(2);
   SparseVector<long, double> f(2);
-  SparseVector<long, double> y(2*bw*m);
   SparseVector<long, double> z(d);
+  SparseVector<long, double> temp_vec(2*bw*m);
   SparseVector<long, double> x(d+bw*m);
   SparseVector<long, double> yave(d+bw*m);
-
-  std::vector<bool> preserve(bw*m);
-  std::vector<bool> Apres(bw*m);
-  size_t npres;
-  std::vector<double> col_norms(m);
-  std::valarray<double> col_budgets(m);
   
   // Initialize a seeded random compressor.
   std::random_device rd;
   std::mt19937_64 generator;
   generator = std::mt19937_64(seed);
   //seed = rd();
-  Compressor<long, double, std::mt19937_64> compressor(bw * m, generator);
+  FRIiter<long, double, std::mt19937_64> y(2*bw*m, generator);
+  // Compressor<long, double, std::mt19937_64> compressor(bw * m, generator);
 
   // Initialize timings.
   clock_t start, end;
@@ -87,44 +83,59 @@ int main() {
   for (size_t spl = 0; spl<Nspls; spl++){
   	// Compute the Neumann sum up to Nit powers of G starting from b
   	x = b;
-  	y = b;
+
+    y.set_vector(b);
 
 
   	for (size_t jj=0; jj<Nit; jj++){
-      std::cout<<std::endl;
-      std::cout<<"iteration: "<<jj<<std::endl;
+      // std::cout<<std::endl;
+      // std::cout<<"iteration: "<<jj<<std::endl;
 
       // y.print();
 
-      compressor.compress(y, m);
+      // std::cout << generator << std::endl;
+
+      y.compress(m);
+      y.remove_zeros();
+
+      y.get_vector(temp_vec);
+
+      sparse_colwisemv(RW1dcolumn, d, bw, temp_vec, A);
+
+      // std::cout << "pass" << std::endl;
+
+      // A.print_crs();
 
       // y.print();
 
-      sparse_colwisemv(RW1dcolumn, d, bw, y, A);
+    	A.row_sums(temp_vec);
 
-      std::cout << "pass" << std::endl;
-
-      // A.print_ccs();
-
-    	A.row_sums(y);
+      y.set_vector(temp_vec);
 
       // y.print();
 
-      x += y;
+      y.assign_parents(A);
+
+      // std::cout << generator << std::endl;
+
+      // for(size_t jj=0; jj<y.size(); jj++)
+      //   std::cout << y[jj].idx << " " << A.row_idx(jj) << std::endl;
+
+      x += temp_vec;
 
       // x.print();
 
   	}
 
   	// Update the estimates of the dot product and variance.
-    sinst = y.sum();
+    sinst = temp_vec.sum();
     sbias += sinst-1.0;
     svar += (sinst-1.0)*(sinst-1.0);
-    finst = y.dot(f);
+    finst = temp_vec.dot(f);
     fbias += (finst-ftrue);
     fvar += (finst-ftrue)*(finst-ftrue);
 
-    yave += y;
+    yave += temp_vec;
 	}
 	end = clock();
 
