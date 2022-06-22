@@ -19,7 +19,7 @@ include("compress.jl")
 
 
 n = 100
-d = 50
+d = 100
 
 m = 100
 
