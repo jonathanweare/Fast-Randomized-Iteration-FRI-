@@ -44,23 +44,24 @@ residual = residual.-b
 println(norm(residual))
 
 x = copy(residual)
-x = x./norm(x,1)
 
-B[:,1] = copy(x)
-
-for k=2:d+1
+for k=1:d
     global x
+
+    x = x./norm(x,1)
+
+    B[:,k] = copy(x)
 
     pivotal_compress(x,m)
     # x = user_sparse_matvec(x)
 
     x = A*x
 
-    SAB[:,k-1] = S*x
+    SAB[:,k] = S*x
 
-    x = x./norm(x,1)
+    Q, R = qr(B[:,1:k])
 
-    B[:,k] = copy(x)
+    B[:,1:k] = Matrix(Q)
 end
 
 Sr = S*residual
