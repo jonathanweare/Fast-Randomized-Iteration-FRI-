@@ -1,5 +1,6 @@
 using LinearAlgebra
 using SparseArrays
+using Random
 
 include("compress.jl")
 
@@ -18,64 +19,89 @@ include("compress.jl")
 # end
 
 
-n = 20
-d = 20
-p = 20
+n = 1000
+d = 5
+p = 2*d
 
-m = 20
+m = 100
+nsmpl = 100000
 
-ee = ones(n-1)
-dd = range(1,length=n)
-dd = dd./n
+# ee = ones(n-1)
+# dd = range(1,length=n)
+# dd = dd./n
+# A = spdiagm(-1=>ee,0=>dd.*3,1=>ee.*2)
+# b = randn(n)
+# b = b./norm(b)
 
-A = spdiagm(-1=>ee,0=>dd.*3,1=>ee.*2)
+Random.seed!(1)
 
-b = randn(n)
-b = b./norm(b)
+λ = @. 10 + (1:n)
+A = triu(rand(n,n),1) + diagm(λ)
+b = rand(n)
 
 xtrue = A\b
 
-S = I
-# S = randn(p,n)
-B = Array{Float64,2}(undef,n,d)
-SAB = Array{Float64,2}(undef,p,d)
+# S = I
+S = randn(p,n)
+SAB = zeros(Float64,p,d)
+Bave = zeros(Float64,n,d)
 
-x = copy(b)
+for s = 1:nsmpl
+    global x, B, Bave, U
 
-for k=1:d
-    global x
+    x = copy(b)
 
-    x = x./norm(x,1)
+    Sx = S*x
 
-    B[:,k] = copy(x)
+    B = zeros(Float64,n,d)
 
-    # if k>1
-    #     Q, R = qr(B[:,1:k])
-    #     B[:,1:k] = Matrix(Q)
-    #     x = B[:,k]
-    # end
+    U = zeros(Float64,p,d)
 
-    pivotal_compress(x,m)
-    # x = user_sparse_matvec(x)
-    x = A*x
+    for k=1:d
 
-    SAB[:,k] = S*x
+        if k == 1
+            r = norm(Sx)
+            B[:,1] = x./r
+            U[:,1] = Sx./r
+        elseif k>1
+            B[:,k] = x - B[:,k-1]*(U[:,1:k-1]\Sx)
+            U[:,k] = S*B[:,k]
+            r = norm(U[:,k])
+            B[:,k] = B[:,k]./r
+            U[:,k] = U[:,k]./r
+        end
+
+        x = copy(B[:,k])
+
+        pivotal_compress(x,m)
+        # x = user_sparse_matvec(x)
+        x = A*x
+
+        Sx = S*x
+
+        SAB[:,k] = SAB[:,k].+Sx
+    end
+
+    Bave = Bave.+B
 end
+
+SAB = SAB./nsmpl
+Bave = Bave./nsmpl
 
 Sr = S*b
 
-SAB2 = S*A*B[:,1:d]
+# SAB2 = S*A*B[:,1:d]
 
 y = SAB\Sr
 
-println(SAB2*y.-Sr)
+# println(SAB2*y.-Sr)
 
-x = B[:,1:d]*y
+x = Bave[:,1:d]*y
 
-println(S*A*x.-Sr)
+# println(S*A*x.-Sr)
 
+# residual = A*x.-b
 
-
-residual = A*x.-b
-
-println(norm(residual))
+println(norm(A*x.-b))
+println(norm(b))
+println(norm(A*x.-b)/norm(b))
