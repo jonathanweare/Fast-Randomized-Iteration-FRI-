@@ -19,13 +19,7 @@ include("compress.jl")
 # end
 
 
-n = 1000
-d = 5
-p = 2*d
-
-m = 100
-nsmpl = 100000
-
+# n = 1000
 # ee = ones(n-1)
 # dd = range(1,length=n)
 # dd = dd./n
@@ -33,13 +27,33 @@ nsmpl = 100000
 # b = randn(n)
 # b = b./norm(b)
 
-Random.seed!(1)
+# n = 1000
+# λ = @. 10 + (1:n)
+# A = triu(rand(n,n),1) + diagm(λ)
+# b = rand(n)
 
-λ = @. 10 + (1:n)
-A = triu(rand(n,n),1) + diagm(λ)
-b = rand(n)
+N = 64
+n = N^3
+A = spdiagm(-1=>fill(-1.0, N - 1), 0=>fill(3.0, N), 1=>fill(-2.0, N - 1))
+# Id = speye(N)
+Id = copy(sparse(1.0*I, N, N));
+A = kron(A, Id) + kron(Id, A)
+A = kron(A, Id) + kron(Id, A)
+# x = ones(n)
+x = zeros(n)
+x[1] = 1
+b = A * x
+
 
 xtrue = A\b
+
+d = 4
+p = 2*d
+
+m = 10000
+nsmpl = 1
+
+Random.seed!(1)
 
 # S = I
 S = randn(p,n)
@@ -47,29 +61,26 @@ SAB = zeros(Float64,p,d)
 Bave = zeros(Float64,n,d)
 
 for s = 1:nsmpl
-    global x, B, Bave, U
+    global x, B, SB, Bave
 
     x = copy(b)
 
     Sx = S*x
 
     B = zeros(Float64,n,d)
-
-    U = zeros(Float64,p,d)
+    SB = zeros(Float64,p,d)
 
     for k=1:d
 
-        if k == 1
-            r = norm(Sx)
-            B[:,1] = x./r
-            U[:,1] = Sx./r
-        elseif k>1
-            B[:,k] = x - B[:,k-1]*(U[:,1:k-1]\Sx)
-            U[:,k] = S*B[:,k]
-            r = norm(U[:,k])
-            B[:,k] = B[:,k]./r
-            U[:,k] = U[:,k]./r
+        B[:,k] = x
+        if k>1
+            w = (SB[:,1:k-1])\Sx
+            B[:,k] = x - B[:,1:k-1]*w
         end
+        SB[:,k] = S*B[:,k]
+        r = norm(SB[:,k])
+        B[:,k] = B[:,k]./r
+        SB[:,k] = SB[:,k]./r
 
         x = copy(B[:,k])
 
@@ -102,6 +113,10 @@ x = Bave[:,1:d]*y
 
 # residual = A*x.-b
 
-println(norm(A*x.-b))
 println(norm(b))
+println(norm(A*x.-b))
 println(norm(A*x.-b)/norm(b))
+println()
+println(norm(Sr))
+println(norm(SAB*y.-Sr))
+println(norm(SAB*y.-Sr)/norm(Sr))

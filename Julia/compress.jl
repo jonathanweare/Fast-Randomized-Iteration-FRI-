@@ -40,13 +40,13 @@ function pivotal_sample(p::Array{Float64})
         # println()
         if q>1 && q<2
             if u<(1-b)/(2-q)
-                b = q - 1
-                a = 1
+                b = q - 1.0
+                a = 1.0
                 # print(a+b)
                 # println()
             else
-                a = q - 1
-                b = 1
+                a = q - 1.0
+                b = 1.0
             end
         elseif q>0 && q<=1
             if u<b/q
@@ -61,12 +61,12 @@ function pivotal_sample(p::Array{Float64})
         if a<Tol
             a = 0
         elseif a>1-Tol
-            a = 1
+            a = 1.0
         end
         if b<Tol
             b = 0
         elseif b>1-Tol
-            b = 1
+            b = 1.0
         end
 
         p[i] = a
@@ -81,6 +81,8 @@ end
 
 function pivotal_compress(x::Array{Float64}, m::Int)
 
+    Tol = 1e-12
+
     d = length(x)
 
     if m>=d
@@ -89,12 +91,31 @@ function pivotal_compress(x::Array{Float64}, m::Int)
 
     p_prs = zeros(d)
     p_spl = abs.(x)
+    pnorm = sum(p_spl)
+
+    nnz = 0
+    for i = 1:d
+        if p_spl[i] <= Tol*pnorm
+            x[i] = 0
+            p_spl[i] = 0
+        else
+            nnz = nnz+1
+        end
+    end
+
+    if nnz<m
+        return
+    end
+
+    # println(p_spl)
+    # println()
+
+    pnorm = sum(p_spl)
 
     plist = collect(enumerate(-p_spl))
 
     pheap = BinaryHeap(Base.By(last),plist)
 
-    pnorm = sum(p_spl)
     pmax = -(first(pheap))[2]
     k = 0
 
@@ -109,6 +130,8 @@ function pivotal_compress(x::Array{Float64}, m::Int)
 
     s = (m-k)/sum(p_spl)
     p_spl = p_spl.*s
+
+    # println(p_spl)
 
     pivotal_sample(p_spl)
 
