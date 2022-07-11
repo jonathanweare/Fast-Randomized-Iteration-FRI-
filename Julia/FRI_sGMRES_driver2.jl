@@ -75,10 +75,14 @@ println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 for k=2:d
         global x, r, B, AB, SAB, Sr
 
-        B[:,k-1] = copy(r)./norm(r,1)
+        s = copy(r)./norm(r,1)
+
+        B[:,k-1] = copy(s)
+
+        # pivotal_compress(s,m)
 
         # println("pass2")
-        AB[:,k-1] = A*B[:,k-1]
+        AB[:,k-1] = A*s
 
         SAB[:,k-1] = SA*B[:,k-1]
         z = SAB[:,1:k-1]\Sr

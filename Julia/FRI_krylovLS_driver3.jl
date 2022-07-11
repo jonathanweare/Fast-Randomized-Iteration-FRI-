@@ -62,16 +62,18 @@ B = zeros(Float64,n,d-1)
 
 AB = zeros(Float64,n,d-1)
 
+Ax = A*x
+
 println("k = 0")
 println("  norm(r) = $(norm(r))")
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
 for k=2:d
-        global x, r, B, AB
+        global x, r, B, AB, Ax
 
         s = copy(r)./norm(r,1)
 
-        # B[:,k-1] = copy(s)
+        B[:,k-1] = copy(s)
 
         # println("pass1")
 
@@ -80,20 +82,22 @@ for k=2:d
         pivotal_compress(s,m)
         # println(s)
 
-        B[:,k-1] = copy(s)
+        # B[:,k-1] = copy(s)
 
         # println("pass2")
 
         AB[:,k-1] = A*s
-        z = AB[:,1:k-1]\r0
+        z = AB[:,1:k-1]\r
 
         # println(norm(AB[:,1:k-1]*z - r0))
 
         # println(z)
 
-        x = x0 + B[:,1:k-1]*z
+        x = x + B[:,1:k-1]*z
+        Ax = Ax + A*(B[:,1:k-1]*z)
 
-        r = r0.-AB[:,1:k-1]*z
+        # r = r0.-AB[:,1:k-1]*z
+        r = b - Ax
         # r = AB[:,k-1]
         # r = r.-AB[:,1:k-1]*z
 
