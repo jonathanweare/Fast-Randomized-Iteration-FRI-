@@ -84,7 +84,7 @@ for k=1:d
         # println(norm(AB[:,1:k-1]*z - r0))
 
         # println(z)
-        q = x0 + B[:,1:k]*z
+        q = x0+B[:,1:k]*z
 
         x = q
 

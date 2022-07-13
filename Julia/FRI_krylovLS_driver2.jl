@@ -51,9 +51,11 @@ b = randn(n)
 xtrue = A\b
 x0 = zeros(n)
 
-d = 10
+d = 50
 p = 2*d
-m = 100
+m = 1000
+
+h = 0.2
 
 
 x = copy(x0)
@@ -67,7 +69,7 @@ S = randn(p,n)
 SAB = zeros(Float64,p,d)
 
 r = copy(r0)
-x = copy(r0)
+x = copy(x0)
 println("k = 0")
 println("  norm(r) = $(norm(r))")
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
@@ -83,27 +85,33 @@ for k=1:d
         # pivotal_compress(s,m)
 
         AB[:,k] = A*B[:,k]
-        z = (S*AB[:,1:k])\(S*(b-A*x))
+        # z = AB[:,1:k]\r
+        z = (S*AB[:,1:k])\(S*r)
 
         # SAB[:,k] = S*AB[:,k]
         # z = SAB[:,1:k]\Sr
 
         # println(z)
 
-        s = copy(B[:,k])
+        s = B[:,1:k]*z
+        # nrms = norm(s,1)
 
         # println(s)
         pivotal_compress(s,m)
         # println()
         # println(s)
 
-        r = A*s
+        rold = r
 
-        x = x+B[:,1:k]*z
+        r = r - h.*(A*s)
+
+        x = x + h.*s
 
         println("k = $k")
-        println("  norm(r) = $(norm(b.-A*x))")
-        println("  norm(r)/norm(b) = $(norm(b.-A*x)/norm(b))")
+        # println("  norm(r) = $(norm(r))")
+        println("  norm(b-Ax) = $(norm(b.-A*x))")
+        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
+        println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
 
         # if k>1
         #     # w = (SB[:,1:k-1])\Sr

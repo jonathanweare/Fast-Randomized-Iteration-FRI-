@@ -4,6 +4,8 @@ using Random
 
 include("compress.jl")
 
+Random.seed!(1)
+
 # function user_sparse_matvec(x::Array{Float64})
 #
 #     n = length(x)
@@ -29,8 +31,9 @@ include("compress.jl")
 
 n = 10000
 λ = @. 10 + (1:n)
-A = triu(rand(n,n),1) + diagm(λ)
-b = rand(n)
+# A = triu(rand(n,n),1) + diagm(λ)
+A = randn(n,n) + diagm(λ)
+b = randn(n)
 
 # N = 16
 # n = N^3
@@ -48,62 +51,84 @@ b = rand(n)
 xtrue = A\b
 x0 = zeros(n)
 
-d = 10
-m = 100
+d = 50
+p = 2*d
+m = 1000
 
-Random.seed!(1)
+h = 0.2
 
-r0 = b.-A*x0
+
 x = copy(x0)
+r0 = b - A*x0
+
+B = zeros(Float64,n,d)
+
+AB = zeros(Float64,n,d)
+
+S = randn(p,n)
+SAB = zeros(Float64,p,d)
+
 r = copy(r0)
-
-
-B = zeros(Float64,n,d-1)
-
-AB = zeros(Float64,n,d-1)
-
-Ax = A*x
-
+x = copy(x0)
 println("k = 0")
 println("  norm(r) = $(norm(r))")
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
-for k=2:d
-        global x, r, B, AB, Ax
+for k=1:d
+        global x, r, B, AB, SAB
 
-        s = copy(r)./norm(r,1)
+        # Sr = S*r
+        B[:,k] = copy(r)./norm(r,1)
 
-        B[:,k-1] = copy(s)
+        # s = copy(r)
 
-        # println("pass1")
+        # pivotal_compress(s,m)
 
-        # println(s)
-        # println()
-        pivotal_compress(s,m)
-        # println(s)
+        AB[:,k] = A*B[:,k]
+        # z = AB[:,1:k]\r
+        z = (S*AB[:,1:k])\(S*r)
 
-        # B[:,k-1] = copy(s)
-
-        # println("pass2")
-
-        AB[:,k-1] = A*s
-        z = AB[:,1:k-1]\r
-
-        # println(norm(AB[:,1:k-1]*z - r0))
+        # SAB[:,k] = S*AB[:,k]
+        # z = SAB[:,1:k]\Sr
 
         # println(z)
 
-        x = x + B[:,1:k-1]*z
-        Ax = Ax + A*(B[:,1:k-1]*z)
+        s = B[:,1:k]*z
+        # nrms = norm(s,1)
 
-        # r = r0.-AB[:,1:k-1]*z
-        r = b - Ax
-        # r = AB[:,k-1]
-        # r = r.-AB[:,1:k-1]*z
+        # println(s)
+        pivotal_compress(s,m)
+        # println()
+        # println(s)
+
+        rold = r
+
+        r = r - h.*(A*s)
+
+        x = x + h.*s
 
         println("k = $k")
-        println("  norm(r) = $(norm(r0-A*(x-x0)))")
-        println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
-        println("  cond(B,2) = $(cond(B[:,1:k-1]))")
+        # println("  norm(r) = $(norm(r))")
+        println("  norm(b-Ax) = $(norm(b.-A*x))")
+        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
+        println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
 
+        # if k>1
+        #     # w = (SB[:,1:k-1])\Sr
+        #     w = B[:,1:k-1]\B[:,k]
+        #     B[:,k] = B[:,k] - B[:,1:k-1]*w
+        #     AB[:,k] = AB[:,k] - AB[:,1:k-1]*w
+        # end
+        # SB[:,k] = S*B[:,k]
+        # nrm = norm(SB[:,k])
+        # nrm = norm(B[:,k],1)
+        # B[:,k] = B[:,k]./nrm
+        # AB[:,k] = AB[:,k]./nrm
+        # SB[:,k] = SB[:,k]./nrm
+
+        println("  cond(B,2) = $(cond(B[:,1:k]))")
 end
+
+# println("final")
+# println(norm(b.-A*x))
+# println(norm(b.-A*x)/norm(b))
