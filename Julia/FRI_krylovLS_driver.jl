@@ -31,7 +31,7 @@ Random.seed!(1)
 
 n = 10000
 λ = @. 10 + (1:n)
-A = triu(rand(n,n),1) + diagm(λ)
+# A = triu(rand(n,n),1) + diagm(λ)
 A = randn(n,n) + diagm(λ)
 b = randn(n)
 
