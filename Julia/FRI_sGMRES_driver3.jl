@@ -48,9 +48,9 @@ b = rand(n)
 xtrue = A\b
 x0 = zeros(n)
 
-d = 10
+d = 2
 p = 2*d
-m = 1000
+m = 100
 
 Random.seed!(1)
 
@@ -65,15 +65,16 @@ AB = zeros(Float64,n,d-1)
 SAB = zeros(Float64,p,d-1)
 
 SA = S*A
-Sr = S*r0
-Sb = S*b
+Sr0 = S*r0
 
 println("k = 0")
 println("  norm(r) = $(norm(r))")
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
+for j = 1:nsmpl
+
 for k=2:d
-        global x, r, B, AB, SAB, Sr
+        global x, r, B, AB, SAB
 
         s = copy(r)./norm(r,1)
 
@@ -82,32 +83,22 @@ for k=2:d
         pivotal_compress(s,m)
 
         # println("pass2")
-        AB[:,k-1] = A*s
+        r = A*s
+
+        AB[:,k-1] = r
 
         SAB[:,k-1] = SA*B[:,k-1]
-        z = SAB[:,1:k-1]\Sr
+        z = SAB[:,1:k-1]\Sr0
 
-        # println(norm(AB[:,1:k-1]*z - r0))
+        # z = AB[:,1:k-1]\r0
 
-        # println(z)
-        q = B[:,1:k-1]*z
-
-        pivotal_compress(q,m)
-
-        x = x + q
-
-        # pivotal_compress(q,m)
-        Sr = Sb - SA*x
-        r = b - A*x
-        # r = b.-A*x
-        # r = r0-A*(B[:,1:k-1]*z)
-        # r = AB[:,k-1]
-        # r = r.-AB[:,1:k-1]*z
-        # r = r - A*q
+        x = x0 + B[:,1:k-1]*z
 
         println("k = $k")
         println("  norm(r) = $(norm(r0-A*(x-x0)))")
         println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
         println("  cond(B,2) = $(cond(B[:,1:k-1]))")
+
+end
 
 end

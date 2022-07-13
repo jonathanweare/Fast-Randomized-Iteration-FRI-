@@ -4,6 +4,8 @@ using Random
 
 include("compress.jl")
 
+Random.seed!(1)
+
 # function user_sparse_matvec(x::Array{Float64})
 #
 #     n = length(x)
@@ -27,37 +29,38 @@ include("compress.jl")
 # b = randn(n)
 # b = b./norm(b)
 
-# n = 1000
-# λ = @. 10 + (1:n)
-# A = triu(rand(n,n),1) + diagm(λ)
-# b = rand(n)
+n = 10000
+λ = @. 10 + (1:n)
+A = triu(rand(n,n),1) + diagm(λ)
+A = randn(n,n) + diagm(λ)
+b = randn(n)
 
-N = 64
-n = N^3
-A = spdiagm(-1=>fill(-1.0, N - 1), 0=>fill(3.0, N), 1=>fill(-2.0, N - 1))
-# Id = speye(N)
-Id = copy(sparse(1.0*I, N, N));
-A = kron(A, Id) + kron(Id, A)
-A = kron(A, Id) + kron(Id, A)
-# x = ones(n)
-x = zeros(n)
-x[1] = 1
-b = A * x
+# N = 64
+# n = N^3
+# A = spdiagm(-1=>fill(-1.0, N - 1), 0=>fill(3.0, N), 1=>fill(-2.0, N - 1))
+# # Id = speye(N)
+# Id = copy(sparse(1.0*I, N, N));
+# A = kron(A, Id) + kron(Id, A)
+# A = kron(A, Id) + kron(Id, A)
+# # x = ones(n)
+# x = zeros(n)
+# x[1] = 1
+# b = A * x
 
 
 xtrue = A\b
 
-d = 4
+d = 5
 p = 2*d
 
-m = 10000
-nsmpl = 1
+m = 1000
+nsmpl = 10
 
-Random.seed!(1)
+
 
 # S = I
 S = randn(p,n)
-SAB = zeros(Float64,p,d)
+SA = S*A
 Bave = zeros(Float64,n,d)
 
 for s = 1:nsmpl
@@ -65,22 +68,23 @@ for s = 1:nsmpl
 
     x = copy(b)
 
-    Sx = S*x
+    # Sx = S*x
 
     B = zeros(Float64,n,d)
-    SB = zeros(Float64,p,d)
+    # SB = zeros(Float64,p,d)
+    # SAB = zeros(Float64,p,d)
 
     for k=1:d
 
         B[:,k] = x
-        if k>1
-            w = (SB[:,1:k-1])\Sx
-            B[:,k] = x - B[:,1:k-1]*w
-        end
-        SB[:,k] = S*B[:,k]
-        r = norm(SB[:,k])
+        # if k>1
+        #     w = (SB[:,1:k-1])\Sx
+        #     B[:,k] = x - B[:,1:k-1]*w
+        # end
+        # SB[:,k] = S*B[:,k]
+        r = norm(S*B[:,k])
         B[:,k] = B[:,k]./r
-        SB[:,k] = SB[:,k]./r
+        # SB[:,k] = SB[:,k]./r
 
         x = copy(B[:,k])
 
@@ -88,16 +92,17 @@ for s = 1:nsmpl
         # x = user_sparse_matvec(x)
         x = A*x
 
-        Sx = S*x
-
-        SAB[:,k] = SAB[:,k].+Sx
+        # Sx = S*x
+        #
+        # SAB[:,k] = SAB[:,k].+Sx
     end
 
     Bave = Bave.+B
 end
 
-SAB = SAB./nsmpl
 Bave = Bave./nsmpl
+
+SAB = SA*Bave
 
 Sr = S*b
 

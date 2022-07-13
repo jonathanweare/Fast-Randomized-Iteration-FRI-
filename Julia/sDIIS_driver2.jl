@@ -33,6 +33,9 @@ n = 10000
 λ = @. 10 + (1:n)
 # A = triu(rand(n,n),1) + diagm(λ)
 A = randn(n,n) + diagm(λ)
+x = zeros(n)
+# x[1] = 1
+# b = A * x
 b = randn(n)
 
 # N = 16
@@ -53,74 +56,52 @@ x0 = zeros(n)
 
 d = 10
 p = 2*d
-m = 100
+h = 0.001
 
-
-x = copy(x0)
-r0 = b - A*x0
-
-B = zeros(Float64,n,d)
-
-AB = zeros(Float64,n,d)
+r0 = b.-A*x0
+x = copy(r0)
+r = copy(r0)
 
 S = randn(p,n)
-SAB = zeros(Float64,p,d)
 
-r = copy(r0)
-x = copy(r0)
+B = zeros(Float64,n,d)
+AB = zeros(Float64,n,d)
+
 println("k = 0")
 println("  norm(r) = $(norm(r))")
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
 for k=1:d
-        global x, r, B, AB, SAB
+        global x, r, B, AB
 
-        # Sr = S*r
-        B[:,k] = copy(r)./norm(r,1)
+        B[:,k] = copy(x)./norm(x,1)
 
-        # s = copy(r)
-
-        # pivotal_compress(s,m)
+        # println("pass2")
 
         AB[:,k] = A*B[:,k]
-        z = (S*AB[:,1:k])\(S*(b-A*x))
+        z = (S*AB[:,1:k])\(S*r0)
 
-        # SAB[:,k] = S*AB[:,k]
-        # z = SAB[:,1:k]\Sr
+        # println(norm(AB[:,1:k-1]*z - r0))
 
         # println(z)
+        q = x0 + B[:,1:k]*z
 
-        s = copy(B[:,k])
+        x = q
 
-        # println(s)
-        pivotal_compress(s,m)
-        # println()
-        # println(s)
+        # pivotal_compress(q,1000)
 
-        r = A*s
+        x = x + h.*(b-A*q)
 
-        x = x+B[:,1:k]*z
+        r = b - A*x
+
+        # pivotal_compress(q,m)
+        # r = r0.-A*q
+        # r = AB[:,k-1]
+        # r = r.-AB[:,1:k-1]*z
 
         println("k = $k")
-        println("  norm(r) = $(norm(b.-A*x))")
-        println("  norm(r)/norm(b) = $(norm(b.-A*x)/norm(b))")
-
-        # if k>1
-        #     # w = (SB[:,1:k-1])\Sr
-        #     w = B[:,1:k-1]\B[:,k]
-        #     B[:,k] = B[:,k] - B[:,1:k-1]*w
-        #     AB[:,k] = AB[:,k] - AB[:,1:k-1]*w
-        # end
-        # SB[:,k] = S*B[:,k]
-        # nrm = norm(SB[:,k])
-        # nrm = norm(B[:,k],1)
-        # B[:,k] = B[:,k]./nrm
-        # AB[:,k] = AB[:,k]./nrm
-        # SB[:,k] = SB[:,k]./nrm
-
+        println("  norm(r) = $(norm(r0-A*(x-x0)))")
+        println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
         println("  cond(B,2) = $(cond(B[:,1:k]))")
-end
 
-# println("final")
-# println(norm(b.-A*x))
-# println(norm(b.-A*x)/norm(b))
+end

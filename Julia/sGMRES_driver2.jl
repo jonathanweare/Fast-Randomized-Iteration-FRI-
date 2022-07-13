@@ -95,7 +95,8 @@ for k=2:d
         # r = b.-A*x
         # r = r0-A*(B[:,1:k-1]*z)
         # r = AB[:,k-1]
-        r = r.-AB[:,1:k-1]*z
+        r = r - A*q
+        # r = r.-AB[:,1:k-1]*z
 
         println("k = $k")
         println("  norm(r) = $(norm(r0-A*(x-x0)))")

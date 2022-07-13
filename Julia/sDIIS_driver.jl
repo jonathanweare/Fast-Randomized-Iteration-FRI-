@@ -4,6 +4,8 @@ using Random
 
 include("compress.jl")
 
+Random.seed!(1)
+
 # function user_sparse_matvec(x::Array{Float64})
 #
 #     n = length(x)
@@ -30,7 +32,10 @@ include("compress.jl")
 n = 10000
 λ = @. 10 + (1:n)
 A = triu(rand(n,n),1) + diagm(λ)
-b = rand(n)
+x = zeros(n)
+# x[1] = 1
+# b = A * x
+b = randn(n)
 
 # N = 16
 # n = N^3
@@ -50,60 +55,48 @@ x0 = zeros(n)
 
 d = 10
 p = 2*d
-m = 1000
-
-Random.seed!(1)
+h = 0.001
 
 r0 = b.-A*x0
-x = copy(x0)
+x = copy(r0)
 r = copy(r0)
 
 S = randn(p,n)
 
 B = zeros(Float64,n,d-1)
 AB = zeros(Float64,n,d-1)
-SAB = zeros(Float64,p,d-1)
-
-SA = S*A
-Sr = S*r0
-Sb = S*b
 
 println("k = 0")
 println("  norm(r) = $(norm(r))")
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
 for k=2:d
-        global x, r, B, AB, SAB, Sr
+        global x, r, B, AB
 
-        s = copy(r)./norm(r,1)
-
-        B[:,k-1] = copy(s)
-
-        pivotal_compress(s,m)
+        B[:,k-1] = copy(x)./norm(x,1)
 
         # println("pass2")
-        AB[:,k-1] = A*s
 
-        SAB[:,k-1] = SA*B[:,k-1]
-        z = SAB[:,1:k-1]\Sr
+        AB[:,k-1] = A*B[:,k-1]
+        z = (S*AB[:,1:k-1])\(S*r)
 
         # println(norm(AB[:,1:k-1]*z - r0))
 
         # println(z)
-        q = B[:,1:k-1]*z
+        q = x+B[:,1:k-1]*z
 
-        pivotal_compress(q,m)
+        x = q
 
-        x = x + q
+        pivotal_compress(q,1000)
+
+        x = x + h.*(b-A*q)
+
+        r = b - A*x
 
         # pivotal_compress(q,m)
-        Sr = Sb - SA*x
-        r = b - A*x
-        # r = b.-A*x
-        # r = r0-A*(B[:,1:k-1]*z)
+        # r = r0.-A*q
         # r = AB[:,k-1]
         # r = r.-AB[:,1:k-1]*z
-        # r = r - A*q
 
         println("k = $k")
         println("  norm(r) = $(norm(r0-A*(x-x0)))")
