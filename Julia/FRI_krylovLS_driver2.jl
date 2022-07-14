@@ -49,7 +49,7 @@ b = randn(n)
 
 
 xtrue = A\b
-x0 = zeros(n)
+
 
 d = 50
 p = 2*d
@@ -58,7 +58,7 @@ m = 1000
 h = 0.2
 
 
-x = copy(x0)
+x0 = zeros(n)
 r0 = b - A*x0
 
 B = zeros(Float64,n,d)
@@ -77,16 +77,12 @@ println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 for k=1:d
         global x, r, B, AB, SAB
 
-        # Sr = S*r
         B[:,k] = copy(r)./norm(r,1)
 
-        # s = copy(r)
-
-        # pivotal_compress(s,m)
-
         AB[:,k] = A*B[:,k]
-        # z = AB[:,1:k]\r
-        z = (S*AB[:,1:k])\(S*r)
+        z = AB[:,1:k]\r
+        # z = AB[:,1:k]\r0
+        # z = (S*AB[:,1:k])\(S*r)
 
         # SAB[:,k] = S*AB[:,k]
         # z = SAB[:,1:k]\Sr
@@ -94,24 +90,30 @@ for k=1:d
         # println(z)
 
         s = B[:,1:k]*z
-        # nrms = norm(s,1)
+        # s = x0 - x + B[:,1:k]*z
 
-        # println(s)
         pivotal_compress(s,m)
-        # println()
-        # println(s)
 
         rold = r
 
-        r = r - h.*(A*s)
-
         x = x + h.*s
+
+        r = r - h.*(A*s)
 
         println("k = $k")
         # println("  norm(r) = $(norm(r))")
         println("  norm(b-Ax) = $(norm(b.-A*x))")
         println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
         println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
+
+        z = (AB[:,1:k])\(r0)
+        # z = (S*AB[:,1:k])\(S*r0)
+
+        y = x0+B[:,1:k]*z
+
+        println()
+        println("  norm(b-Ay) = $(norm(b.-A*y))")
+        println("  norm(b-Ay)/norm(b-Ax) = $(norm(b.-A*y)/norm(b-A*x))")
 
         # if k>1
         #     # w = (SB[:,1:k-1])\Sr
@@ -127,6 +129,8 @@ for k=1:d
         # SB[:,k] = SB[:,k]./nrm
 
         println("  cond(B,2) = $(cond(B[:,1:k]))")
+
+        println()
 end
 
 # println("final")
