@@ -51,11 +51,11 @@ b = randn(n)
 xtrue = A\b
 
 
-d = 50
+d = 10
 p = 2*d
-m = 1000
+m = 100
 
-h = 0.2
+h = 0.02
 
 
 x0 = zeros(n)
@@ -80,17 +80,18 @@ for k=1:d
         B[:,k] = copy(r)./norm(r,1)
 
         AB[:,k] = A*B[:,k]
-        z = AB[:,1:k]\r
+        # z = AB[:,1:k]\r
         # z = AB[:,1:k]\r0
         # z = (S*AB[:,1:k])\(S*r)
+        z = (S*AB[:,1:k])\(S*r0)
 
         # SAB[:,k] = S*AB[:,k]
         # z = SAB[:,1:k]\Sr
 
         # println(z)
 
-        s = B[:,1:k]*z
-        # s = x0 - x + B[:,1:k]*z
+        # s = B[:,1:k]*z
+        s = x0 - x + B[:,1:k]*z
 
         pivotal_compress(s,m)
 
@@ -106,8 +107,8 @@ for k=1:d
         println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
         println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
 
-        z = (AB[:,1:k])\(r0)
-        # z = (S*AB[:,1:k])\(S*r0)
+        # z = (AB[:,1:k])\(r0)
+        z = (S*AB[:,1:k])\(S*r0)
 
         y = x0+B[:,1:k]*z
 
