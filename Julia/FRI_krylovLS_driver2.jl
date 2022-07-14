@@ -54,6 +54,7 @@ xtrue = A\b
 d = 10
 p = 2*d
 m = 100
+nsmpl = 1000
 
 h = 0.02
 
@@ -61,21 +62,31 @@ h = 0.02
 x0 = zeros(n)
 r0 = b - A*x0
 
-B = zeros(Float64,n,d)
 
-AB = zeros(Float64,n,d)
 
 S = randn(p,n)
 SAB = zeros(Float64,p,d)
 
-r = copy(r0)
-x = copy(x0)
-println("k = 0")
-println("  norm(r) = $(norm(r))")
-println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
-for k=1:d
-        global x, r, B, AB, SAB
+Bave = zeros(Float64,n,d)
+
+ABave = zeros(Float64,n,d)
+
+# println("k = 0")
+println("  norm(r) = $(norm(r0))")
+println("  norm(r)/norm(b) = $(norm(r0)/norm(b))")
+
+for j = 1:nsmpl
+    global x, r, B, AB, SAB, Bave, ABave
+
+    B = zeros(Float64,n,d)
+
+    AB = zeros(Float64,n,d)
+
+    r = copy(r0)
+    x = copy(x0)
+
+    for k=1:d
 
         B[:,k] = copy(r)./norm(r,1)
 
@@ -101,38 +112,45 @@ for k=1:d
 
         r = r - h.*(A*s)
 
-        println("k = $k")
+        # println("k = $k")
         # println("  norm(r) = $(norm(r))")
-        println("  norm(b-Ax) = $(norm(b.-A*x))")
-        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
-        println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
+        # println("  norm(b-Ax) = $(norm(b.-A*x))")
+        # println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
+        # println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
 
-        # z = (AB[:,1:k])\(r0)
-        z = (S*AB[:,1:k])\(S*r0)
-
-        y = x0+B[:,1:k]*z
-
-        println()
-        println("  norm(b-Ay) = $(norm(b.-A*y))")
-        println("  norm(b-Ay)/norm(b-Ax) = $(norm(b.-A*y)/norm(b-A*x))")
-
-        # if k>1
-        #     # w = (SB[:,1:k-1])\Sr
-        #     w = B[:,1:k-1]\B[:,k]
-        #     B[:,k] = B[:,k] - B[:,1:k-1]*w
-        #     AB[:,k] = AB[:,k] - AB[:,1:k-1]*w
-        # end
-        # SB[:,k] = S*B[:,k]
-        # nrm = norm(SB[:,k])
-        # nrm = norm(B[:,k],1)
-        # B[:,k] = B[:,k]./nrm
-        # AB[:,k] = AB[:,k]./nrm
-        # SB[:,k] = SB[:,k]./nrm
-
-        println("  cond(B,2) = $(cond(B[:,1:k]))")
-
-        println()
+        Bave[:,k] = Bave[:,k]+B[:,k]
+        ABave[:,k] = ABave[:,k]+AB[:,k]
+    end
 end
+
+Bave = Bave./nsmpl
+ABave = ABave./nsmpl
+
+# z = (AB[:,1:k])\(r0)
+zave = (S*ABave)\(S*r0)
+
+y = x0+Bave*zave
+
+println()
+println("  norm(b-Ay) = $(norm(b.-A*y))")
+println("  norm(b-Ay)/norm(b-Ax) = $(norm(b.-A*y)/norm(b-A*x))")
+
+# if k>1
+#     # w = (SB[:,1:k-1])\Sr
+#     w = B[:,1:k-1]\B[:,k]
+#     B[:,k] = B[:,k] - B[:,1:k-1]*w
+#     AB[:,k] = AB[:,k] - AB[:,1:k-1]*w
+# end
+# SB[:,k] = S*B[:,k]
+# nrm = norm(SB[:,k])
+# nrm = norm(B[:,k],1)
+# B[:,k] = B[:,k]./nrm
+# AB[:,k] = AB[:,k]./nrm
+# SB[:,k] = SB[:,k]./nrm
+
+println("  cond(B,2) = $(cond(Bave))")
+
+println()
 
 # println("final")
 # println(norm(b.-A*x))
