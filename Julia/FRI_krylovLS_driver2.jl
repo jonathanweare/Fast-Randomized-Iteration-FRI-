@@ -51,10 +51,10 @@ b = randn(n)
 xtrue = A\b
 
 
-d = 10
+d = 5
 p = 2*d
 m = 100
-nsmpl = 1000
+nsmpl = 10000
 
 h = 0.02
 
