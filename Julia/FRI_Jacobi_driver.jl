@@ -54,9 +54,9 @@ b = randn(n)
 
 xtrue = A\b
 
-d = 1000
+d = 100
 m = 100
-h = 0.000005
+h = 0.0002
 
 
 x0 = zeros(Float64,n)
@@ -79,7 +79,7 @@ for k=1:d
 
     rold = copy(r)
 
-    pivotal_compress(r,m)
+    # pivotal_compress(r,m)
 
     x = x + h.*r
     r = rold - h.*(A*r)
