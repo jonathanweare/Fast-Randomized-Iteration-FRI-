@@ -4,6 +4,8 @@ using Random
 
 include("compress.jl")
 
+Random.seed!(1)
+
 # function user_sparse_matvec(x::Array{Float64})
 #
 #     n = length(x)
@@ -27,10 +29,16 @@ include("compress.jl")
 # b = randn(n)
 # b = b./norm(b)
 
+# n = 10000
+# λ = @. 10 + (1:n)
+# A = triu(rand(n,n),1) + diagm(λ)
+# b = rand(n)
+
 n = 10000
 λ = @. 10 + (1:n)
-A = triu(rand(n,n),1) + diagm(λ)
-b = rand(n)
+# A = triu(rand(n,n),1) + diagm(λ)
+A = randn(n,n) + diagm(λ)
+b = randn(n)
 
 # N = 16
 # n = N^3
@@ -52,7 +60,7 @@ d = 10
 p = 2*d
 m = 1000
 
-Random.seed!(1)
+
 
 r0 = b.-A*x0
 x = copy(x0)
@@ -79,7 +87,56 @@ for k=2:d
 
         B[:,k-1] = copy(s)
 
-        pivotal_compress(s,m)
+        # pivotal_compress(s,m)
+
+        # println("pass2")
+        AB[:,k-1] = A*s
+
+        z = AB[:,1:k-1]\r
+
+        SAB[:,k-1] = SA*B[:,k-1]
+        # z = SAB[:,1:k-1]\Sr
+
+        # println(norm(AB[:,1:k-1]*z - r0))
+
+        # println(z)
+        q = B[:,1:k-1]*z
+
+        # pivotal_compress(q,m)
+
+        x = x + q
+
+        rold = copy(r)
+
+        # pivotal_compress(q,m)
+        Sr = Sb - SA*x
+        # r = b - A*x
+        # r = b.-A*x
+        # r = r0-A*(B[:,1:k-1]*z)
+        # r = AB[:,k-1]
+        # r = r.-AB[:,1:k-1]*z
+        r = r - A*q
+
+        println("k = $k")
+        println("  norm(r) = $(norm(r0-A*(x-x0)))")
+        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
+        println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
+        println("  cond(B,2) = $(cond(B[:,1:k-1]))")
+
+end
+
+
+B = zeros(Float64,n,d-1)
+AB = zeros(Float64,n,d-1)
+
+for k=2:d
+        global x, r, B, AB, SAB, Sr
+
+        s = copy(r)./norm(r,1)
+
+        B[:,k-1] = copy(s)
+
+        # pivotal_compress(s,m)
 
         # println("pass2")
         AB[:,k-1] = A*s
@@ -92,21 +149,24 @@ for k=2:d
         # println(z)
         q = B[:,1:k-1]*z
 
-        pivotal_compress(q,m)
+        # pivotal_compress(q,m)
 
         x = x + q
 
+        rold = copy(r)
+
         # pivotal_compress(q,m)
         Sr = Sb - SA*x
-        r = b - A*x
+        # r = b - A*x
         # r = b.-A*x
         # r = r0-A*(B[:,1:k-1]*z)
         # r = AB[:,k-1]
         # r = r.-AB[:,1:k-1]*z
-        # r = r - A*q
+        r = r - A*q
 
         println("k = $k")
         println("  norm(r) = $(norm(r0-A*(x-x0)))")
+        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
         println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
         println("  cond(B,2) = $(cond(B[:,1:k-1]))")
 

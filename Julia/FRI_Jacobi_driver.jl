@@ -54,11 +54,9 @@ b = randn(n)
 
 xtrue = A\b
 
-d = 10
+d = 1000
 m = 100
-h = 0.01
-
-Random.seed!(1)
+h = 0.000005
 
 
 x0 = zeros(Float64,n)
@@ -75,16 +73,19 @@ println("  norm(r) = $(norm(b-A*x))")
 for k=1:d
     global x, r, xave
 
-    s = copy(r)
+    # s = copy(r)
 
-    pivotal_compress(s,m)
+    # pivotal_compress(s,m)
 
     rold = copy(r)
 
-    r = r - h.*(A*s)
-    x = x + h.*s
+    pivotal_compress(r,m)
 
-    # pivotal_compress(r,m)
+    x = x + h.*r
+    r = rold - h.*(A*r)
+
+
+
     #
     # x = x + h.*(transpose(A)*r)
 
@@ -97,6 +98,6 @@ for k=1:d
         xave = xave + x.*(2/d)
         println()
         println("  norm(r) = $(norm(b-A*xave))")
-        println("  norm(r)/norm(r0) = $(norm(b-A*xave)/norm(b-A*x0))")
+        # println("  norm(r)/norm(r0) = $(norm(b-A*xave)/norm(b-A*x0))")
     end
 end

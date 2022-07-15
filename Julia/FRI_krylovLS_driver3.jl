@@ -49,44 +49,54 @@ b = randn(n)
 
 
 xtrue = A\b
-x0 = zeros(n)
 
-d = 50
+
+d = 5
 p = 2*d
 m = 1000
+nloops = 40
 
 h = 0.2
 
 
-x = copy(x0)
+x0 = zeros(n)
 r0 = b - A*x0
 
-B = zeros(Float64,n,d)
 
-AB = zeros(Float64,n,d)
 
-S = randn(p,n)
+
 SAB = zeros(Float64,p,d)
+
+
+# println("k = 0")
+println("  norm(r) = $(norm(r0))")
+println("  norm(r)/norm(b) = $(norm(r0)/norm(b))")
+
+
+
+
 
 r = copy(r0)
 x = copy(x0)
-println("k = 0")
-println("  norm(r) = $(norm(r))")
-println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
-for k=1:d
-        global x, r, B, AB, SAB
+for j = 1:nloops
+    global x, r, B, AB, SAB, r0, x0, S
 
-        # Sr = S*r
+    B = zeros(Float64,n,d)
+    AB = zeros(Float64,n,d)
+
+
+    S = randn(p,n)
+
+    for k=1:d
+
         B[:,k] = copy(r)./norm(r,1)
-
-        # s = copy(r)
-
-        # pivotal_compress(s,m)
 
         AB[:,k] = A*B[:,k]
         # z = AB[:,1:k]\r
+        # z = AB[:,1:k]\r0
         z = (S*AB[:,1:k])\(S*r)
+        # z = (S*AB[:,1:k])\(S*r0)
 
         # SAB[:,k] = S*AB[:,k]
         # z = SAB[:,1:k]\Sr
@@ -94,40 +104,54 @@ for k=1:d
         # println(z)
 
         s = B[:,1:k]*z
-        # nrms = norm(s,1)
+        # s = x0 - x + B[:,1:k]*z
 
-        # println(s)
         pivotal_compress(s,m)
-        # println()
-        # println(s)
 
         rold = r
 
-        r = r - h.*(A*s)
-
         x = x + h.*s
 
+        r = r - h.*(A*s)
+
         println("k = $k")
-        # println("  norm(r) = $(norm(r))")
+        println("  norm(r) = $(norm(r))")
         println("  norm(b-Ax) = $(norm(b.-A*x))")
         println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
         println("  norm(b-Ax)/norm(b) = $(norm(b.-A*x)/norm(b))")
-
-        # if k>1
-        #     # w = (SB[:,1:k-1])\Sr
-        #     w = B[:,1:k-1]\B[:,k]
-        #     B[:,k] = B[:,k] - B[:,1:k-1]*w
-        #     AB[:,k] = AB[:,k] - AB[:,1:k-1]*w
-        # end
-        # SB[:,k] = S*B[:,k]
-        # nrm = norm(SB[:,k])
-        # nrm = norm(B[:,k],1)
-        # B[:,k] = B[:,k]./nrm
-        # AB[:,k] = AB[:,k]./nrm
-        # SB[:,k] = SB[:,k]./nrm
-
         println("  cond(B,2) = $(cond(B[:,1:k]))")
+
+    end
+    x0 = copy(x)
+    r0 = copy(r)
 end
+
+
+# z = (AB[:,1:k])\(r0)
+zf = (S*AB)\(S*r0)
+
+y = x0+B*zf
+
+println()
+println("  norm(b-Ay) = $(norm(b.-A*y))")
+println("  norm(b-Ay)/norm(b-Ax) = $(norm(b.-A*y)/norm(b-A*x))")
+
+# if k>1
+#     # w = (SB[:,1:k-1])\Sr
+#     w = B[:,1:k-1]\B[:,k]
+#     B[:,k] = B[:,k] - B[:,1:k-1]*w
+#     AB[:,k] = AB[:,k] - AB[:,1:k-1]*w
+# end
+# SB[:,k] = S*B[:,k]
+# nrm = norm(SB[:,k])
+# nrm = norm(B[:,k],1)
+# B[:,k] = B[:,k]./nrm
+# AB[:,k] = AB[:,k]./nrm
+# SB[:,k] = SB[:,k]./nrm
+
+
+
+println()
 
 # println("final")
 # println(norm(b.-A*x))
