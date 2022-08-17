@@ -51,12 +51,12 @@ b = randn(n)
 xtrue = A\b
 
 
-d = 10
+d = 100
 p = 2*d
-m = 100
+m = 1000
 nsmpl = 1
 
-h = 1
+h = 0.1
 
 
 x0 = zeros(n)
@@ -91,8 +91,8 @@ for j = 1:nsmpl
         B[:,k] = copy(r)./norm(r,1)
 
         AB[:,k] = A*B[:,k]
-        # z = AB[:,1:k]\r
-        z = AB[:,1:k]\r0
+        z = AB[:,1:k]\r
+        # z = AB[:,1:k]\r0
         # z = (S*AB[:,1:k])\(S*r)
         # z = (S*AB[:,1:k])\(S*r0)
 
@@ -101,10 +101,10 @@ for j = 1:nsmpl
 
         # println(z)
 
-        # s = B[:,1:k]*z
-        s = x0 - x + B[:,1:k]*z
+        s = B[:,1:k]*z
+        # s = x0 - x + B[:,1:k]*z
 
-        # pivotal_compress(s,m)
+        pivotal_compress(s,m)
 
         rold = r
 

@@ -54,49 +54,47 @@ b = randn(n)
 
 
 xtrue = A\b
-x0 = copy(b)
+x0 = zeros(n)
 
-d = 3
+d = 10
+p = 2*d
 m = 1000
 
+r0 = b.-A*x0
 x = copy(x0)
-y = A*x
+r = copy(r0)
 
-B = zeros(Float64,n,d-1)
-AB = zeros(Float64,n,d-1)
-
+B = zeros(Float64,n,d)
+AB = zeros(Float64,n,d)
 
 println("k = 0")
-println("  norm(r) = $(norm(b-y))")
-println("  norm(r)/norm(b) = $(norm(b-y)/norm(b))")
+println("  norm(r) = $(norm(r))")
+println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
-for k=1:d-1
-        global x, y, B, AB
+for k=1:d
+        global x, r, B, AB, SAB, Sr
 
-        B[:,k] = copy(x)./norm(x)
-        AB[:,k] = copy(y)./norm(x)
+        s = copy(r)./norm(r,1)
+        pivotal_compress(s,m)
 
-        z = AB[:,1:k]\b
+        B[:,k] = copy(s)
+        AB[:,k] = A*s
 
-        println(z)
+        z = AB[:,1:k]\r
 
-        q = B[:,1:k]*z - x
-
-        println(norm(B[:,1:k]*z))
-
-        println(norm(x))
-
-        println(norm(q))
-
-        # pivotal_compress(q,m)
+        # println(z)
+        q = B[:,1:k]*z
+        Aq = AB[:,1:k]*z
 
         x = x + q
-        y = y + A*q
+
+        rold = copy(r)
+        r = r - Aq
 
         println("k = $k")
-        println("  norm(r) = $(norm(b-y))")
-        # println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
-        println("  norm(r)/norm(b) = $(norm(b-y)/norm(b))")
+        println("  norm(r) = $(norm(r0-A*(x-x0)))")
+        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
+        println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
         println("  cond(B,2) = $(cond(B[:,1:k]))")
 
 end
