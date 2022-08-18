@@ -7,7 +7,7 @@ include("compress.jl")
 Random.seed!(1)
 
 ##############  The example system ###########
-n = 10000
+n = 1000
 λ = @. 10 + (1:n)
 # A = randn(n,n) + diagm(λ)
 b = randn(n)
@@ -16,8 +16,8 @@ A = I
 ##################################
 
 
-d = 100  ####### number of iterations
-m = 1000  ####### number of non-zero entries
+d = 10  ####### number of iterations
+m = 100  ####### number of non-zero entries
 
 xtrue = A\b  ####### exact solution
 x0 = zeros(n)  ######## initial guess
