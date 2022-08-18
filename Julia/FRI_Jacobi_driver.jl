@@ -37,8 +37,10 @@ Random.seed!(1)
 n = 10000
 λ = @. 10 + (1:n)
 # A = triu(rand(n,n),1) + diagm(λ)
-A = randn(n,n) + diagm(λ)
+# A = randn(n,n) + diagm(λ)
 b = randn(n)
+
+A = I
 
 # N = 32
 # n = N^3
@@ -54,9 +56,9 @@ b = randn(n)
 
 xtrue = A\b
 
-d = 100
-m = 100
-h = 0.0002
+d = 10
+m = 1000
+h = 0.3
 
 
 x0 = zeros(Float64,n)
@@ -79,7 +81,7 @@ for k=1:d
 
     rold = copy(r)
 
-    # pivotal_compress(r,m)
+    pivotal_compress(r,m)
 
     x = x + h.*r
     r = rold - h.*(A*r)

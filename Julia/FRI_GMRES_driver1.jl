@@ -6,90 +6,61 @@ include("compress.jl")
 
 Random.seed!(1)
 
-# function user_sparse_matvec(x::Array{Float64})
-#
-#     n = length(x)
-#
-#     ee = ones(n-1)
-#     dd = range(1,length=n)
-#     dd = dd./n
-#
-#     A = spdiagm(-1=>ee,0=>dd.*3,1=>ee.*2)
-#
-#     return A*x
-#
-# end
-
-
-# n = 1000
-# ee = ones(n-1)
-# dd = range(1,length=n)
-# dd = dd./n
-# A = spdiagm(-1=>ee,0=>dd.*3,1=>ee.*2)
-# b = randn(n)
-# b = b./norm(b)
-
-# n = 10000
-# λ = @. 10 + (1:n)
-# A = triu(rand(n,n),1) + diagm(λ)
-# b = rand(n)
-
+##############  The example system ###########
 n = 10000
 λ = @. 10 + (1:n)
-# A = triu(rand(n,n),1) + diagm(λ)
-A = randn(n,n) + diagm(λ)
+# A = randn(n,n) + diagm(λ)
 b = randn(n)
 
-# N = 16
-# n = N^3
-# A = spdiagm(-1=>fill(-1.0, N - 1), 0=>fill(3.0, N), 1=>fill(-2.0, N - 1))
-# # Id = speye(N)
-# Id = copy(sparse(1.0*I, N, N));
-# A = kron(A, Id) + kron(Id, A)
-# A = kron(A, Id) + kron(Id, A)
-# x = ones(n)
-# # x = zeros(n)
-# # x[1] = 1
-# b = A * x
+A = I
+##################################
 
 
-xtrue = A\b
-x0 = zeros(n)
+d = 100  ####### number of iterations
+m = 1000  ####### number of non-zero entries
 
-d = 10
-p = 2*d
-m = 1000
+xtrue = A\b  ####### exact solution
+x0 = zeros(n)  ######## initial guess
+r0 = b.-A*x0  ######## initial residual
 
-r0 = b.-A*x0
+
+######## misc. initialization stuff ##############
 x = copy(x0)
 r = copy(r0)
-
 B = zeros(Float64,n,d)
 AB = zeros(Float64,n,d)
+#############################
+
+
+
 
 println("k = 0")
-println("  norm(r) = $(norm(r))")
+println("  norm(r) = $(norm(r))")  ######## print the norm of the residual
 println("  norm(r)/norm(b) = $(norm(r)/norm(b))")
 
+
 for k=1:d
-        global x, r, B, AB, SAB, Sr
+        global x, r, B, AB
 
-        s = copy(r)./norm(r,1)
-        pivotal_compress(s,m)
+        s = copy(r)./norm(r,1) ######## s is a normalized copy of the residual
 
-        B[:,k] = copy(s)
-        AB[:,k] = A*s
+        pivotal_compress(s,m) ####### compress s
 
-        z = AB[:,1:k]\r
+        B[:,k] = copy(s)  ###### add s to our basis
+        AB[:,k] = A*s   ##### update A*basis
+
+        z = AB[:,1:k]\r  #### find linear combination of basis vectors
+                         #### so that x plus that linear combination
+                         #### minimizes the current residual
 
         # println(z)
-        q = B[:,1:k]*z
-        Aq = AB[:,1:k]*z
+        q = B[:,1:k]*z  #### assemble the linear combination
+        Aq = AB[:,1:k]*z  #### assemble A times the linear combination
 
-        x = x + q
+        x = x + q       ##### update x by adding the linear combination
 
-        rold = copy(r)
-        r = r - Aq
+        rold = copy(r)  #### keep track of the last residual
+        r = r - Aq      #### update the current residual
 
         println("k = $k")
         println("  norm(r) = $(norm(r0-A*(x-x0)))")
