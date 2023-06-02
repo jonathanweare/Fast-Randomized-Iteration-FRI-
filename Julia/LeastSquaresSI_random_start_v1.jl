@@ -33,11 +33,13 @@ Random.seed!(1)
 # b = rand(n)
 
 n = 1000
-λ = @. 10 + (1:n)
+# λ = @. 10 + (1:n)
+λ = zeros(n)
 # λ = n*ones(n)
 # λ[1] = 10
 # A = triu(rand(n,n),1) + diagm(λ)
 A = randn(n,n) + diagm(λ)
+A2 = A'*A
 b = randn(n)
 
 # N = 32
@@ -54,15 +56,21 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 200
-h = 0.0001
-k = 20
+q = 1
+h = 0.0004
+k = 50
 
 x0 = zeros(Float64,n)
 
 x = copy(x0)
 
 Y = randn(n,k)
+
+ef = eigen(Symmetric(A2), n:n)
+@show (1.0 .- h.*(ef.values))
+
+ef = eigen(Symmetric(A2), 1:k+1)   #k smallest eigenvalues/vectors
+@show (1.0 .- h.*(ef.values))
 
 println("q = 0")
 println("  norm(r) = $(norm(b-A*x))")
@@ -71,9 +79,9 @@ for s=1:q
     global x, Y
 
     r = b - A*x
-    x = x + h.*r
+    x = x + h.*(A'*r)
 
-    Y = Y - h.*(A*Y)
+    Y = Y - h.*(A2*Y)
 
     Q, R = qr(hcat(Y,x))
 
@@ -82,7 +90,7 @@ for s=1:q
     Y = B[:,1:k]
 
     AB = A*B
-    c = (B'*AB)\(B'*b)
+    c = AB\b
 
     rc = b - AB*c
 
