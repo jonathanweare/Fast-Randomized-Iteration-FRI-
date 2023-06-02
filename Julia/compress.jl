@@ -9,41 +9,23 @@ function pivotal_sample(p::Array{Float64})
     b = p[j]
     Tol = 1e-12
 
-    # println(p)
-    # println(sum(p))
-    # println()
-
     while k<=d
         if k<=d && (a<Tol || a>1-Tol)
-            # println("pass1 ", a)
             a = p[k]
             i = k
             k += 1
         end
         if k<=d && (b<Tol || b>1-Tol)
-            # println("pass2 ", b)
             b = p[k]
             j = k
             k += 1
         end
         u = rand()
         q = a + b
-        # print(i)
-        # print(" ")
-        # print(j)
-        # print(" ")
-        # print(a)
-        # print(" ")
-        # print(b)
-        # print(" ")
-        # print(q)
-        # println()
         if q>1 && q<2
             if u<(1-b)/(2-q)
                 b = q - 1.0
                 a = 1.0
-                # print(a+b)
-                # println()
             else
                 a = q - 1.0
                 b = 1.0
@@ -71,9 +53,6 @@ function pivotal_sample(p::Array{Float64})
 
         p[i] = a
         p[j] = b
-        # println(p)
-        # println(sum(p))
-        # println()
     end
 end
 
@@ -107,9 +86,6 @@ function pivotal_compress(x::Array{Float64}, m::Int)
         return
     end
 
-    # println(p_spl)
-    # println()
-
     pnorm = sum(p_spl)
 
     plist = collect(enumerate(-p_spl))
@@ -131,11 +107,7 @@ function pivotal_compress(x::Array{Float64}, m::Int)
     s = (m-k)/sum(p_spl)
     p_spl = p_spl.*s
 
-    # println(p_spl)
-
     pivotal_sample(p_spl)
-
-    # x = (p_prs.+(p_spl./s)).*sign.(x)
 
     for i=1:d
         x[i] = (p_prs[i] + p_spl[i]/s)*sign(x[i])

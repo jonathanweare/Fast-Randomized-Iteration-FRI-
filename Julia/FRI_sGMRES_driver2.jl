@@ -85,22 +85,23 @@ for k=2:d
 
         s = copy(r)./norm(r,1)
 
-        B[:,k-1] = copy(s)
+        pivotal_compress(s,m)
 
-        # pivotal_compress(s,m)
+        B[:,k-1] = copy(s)
 
         # println("pass2")
         AB[:,k-1] = A*s
 
         z = AB[:,1:k-1]\r
 
-        SAB[:,k-1] = SA*B[:,k-1]
+        # SAB[:,k-1] = SA*B[:,k-1]
         # z = SAB[:,1:k-1]\Sr
 
         # println(norm(AB[:,1:k-1]*z - r0))
 
         # println(z)
         q = B[:,1:k-1]*z
+        Aq = AB[:,1:k-1]*z
 
         # pivotal_compress(q,m)
 
@@ -109,13 +110,13 @@ for k=2:d
         rold = copy(r)
 
         # pivotal_compress(q,m)
-        Sr = Sb - SA*x
+        # Sr = Sb - SA*x
         # r = b - A*x
         # r = b.-A*x
         # r = r0-A*(B[:,1:k-1]*z)
         # r = AB[:,k-1]
         # r = r.-AB[:,1:k-1]*z
-        r = r - A*q
+        r = r - Aq
 
         println("k = $k")
         println("  norm(r) = $(norm(r0-A*(x-x0)))")
@@ -126,48 +127,49 @@ for k=2:d
 end
 
 
-B = zeros(Float64,n,d-1)
-AB = zeros(Float64,n,d-1)
-
-for k=2:d
-        global x, r, B, AB, SAB, Sr
-
-        s = copy(r)./norm(r,1)
-
-        B[:,k-1] = copy(s)
-
-        # pivotal_compress(s,m)
-
-        # println("pass2")
-        AB[:,k-1] = A*s
-
-        SAB[:,k-1] = SA*B[:,k-1]
-        z = SAB[:,1:k-1]\Sr
-
-        # println(norm(AB[:,1:k-1]*z - r0))
-
-        # println(z)
-        q = B[:,1:k-1]*z
-
-        # pivotal_compress(q,m)
-
-        x = x + q
-
-        rold = copy(r)
-
-        # pivotal_compress(q,m)
-        Sr = Sb - SA*x
-        # r = b - A*x
-        # r = b.-A*x
-        # r = r0-A*(B[:,1:k-1]*z)
-        # r = AB[:,k-1]
-        # r = r.-AB[:,1:k-1]*z
-        r = r - A*q
-
-        println("k = $k")
-        println("  norm(r) = $(norm(r0-A*(x-x0)))")
-        println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
-        println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
-        println("  cond(B,2) = $(cond(B[:,1:k-1]))")
-
-end
+# B = zeros(Float64,n,d-1)
+# AB = zeros(Float64,n,d-1)
+#
+# for k=2:d
+#         global x, r, B, AB, SAB, Sr
+#
+#         s = copy(r)./norm(r,1)
+#
+#         B[:,k-1] = copy(s)
+#
+#         # pivotal_compress(s,m)
+#
+#         # println("pass2")
+#         AB[:,k-1] = A*s
+#
+#         # SAB[:,k-1] = SA*B[:,k-1]
+#         # z = SAB[:,1:k-1]\Sr
+#         z = AB[:,1:k-1]\r
+#
+#         # println(norm(AB[:,1:k-1]*z - r0))
+#
+#         # println(z)
+#         q = B[:,1:k-1]*z
+#
+#         # pivotal_compress(q,m)
+#
+#         x = x + q
+#
+#         rold = copy(r)
+#
+#         # pivotal_compress(q,m)
+#         # Sr = Sb - SA*x
+#         # r = b - A*x
+#         # r = b.-A*x
+#         # r = r0-A*(B[:,1:k-1]*z)
+#         # r = AB[:,k-1]
+#         # r = r.-AB[:,1:k-1]*z
+#         r = r - A*q
+#
+#         println("k = $k")
+#         println("  norm(r) = $(norm(r0-A*(x-x0)))")
+#         println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
+#         println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
+#         println("  cond(B,2) = $(cond(B[:,1:k-1]))")
+#
+# end
