@@ -2,8 +2,6 @@ using LinearAlgebra
 using SparseArrays
 using Random
 
-include("compress.jl")
-
 Random.seed!(1)
 
 # function user_sparse_matvec(x::Array{Float64})
@@ -36,6 +34,8 @@ Random.seed!(1)
 
 n = 1000
 λ = @. 10 + (1:n)
+# λ = n*ones(n)
+# λ[1] = 10
 # A = triu(rand(n,n),1) + diagm(λ)
 A = randn(n,n) + diagm(λ)
 b = randn(n)
@@ -54,50 +54,40 @@ b = randn(n)
 
 xtrue = A\b
 
-d = 50000
-m = 10
-h = 0.00002
-
+q = 200
+h = 0.0001
+k = 20
 
 x0 = zeros(Float64,n)
-r0 = b - A*x0
 
 x = copy(x0)
-r = copy(r0)
 
-xave = zeros(Float64,n)
+Y = randn(n,k)
 
-println("k = 0")
+println("q = 0")
 println("  norm(r) = $(norm(b-A*x))")
 
-for k=1:d
-    global x, r, xave
+for s=1:q
+    global x, Y
 
-    # s = copy(r)
-
-    # pivotal_compress(s,m)
-
-    rold = copy(r)
-
-    pivotal_compress(r,m)
-
+    r = b - A*x
     x = x + h.*r
-    r = rold - h.*(A*r)
 
+    Y = Y - h.*(A*Y)
 
+    Q, R = qr(hcat(Y,x))
 
-    #
-    # x = x + h.*(transpose(A)*r)
+    B = Matrix(Q)
 
-    println("k = $k")
-    println("  norm(r) = $(norm(b-A*x))")
-    println("  norm(b-Ax)/norm(b-Axold) = $(norm(r)/norm(rold))")
-    println("  norm(r)/norm(r0) = $(norm(b-A*x)/norm(b-A*x0))")
+    Y = B[:,1:k]
 
-    if k > d/2
-        xave = xave + x.*(2/d)
-        println()
-        println("  norm(r) = $(norm(b-A*xave))")
-        # println("  norm(r)/norm(r0) = $(norm(b-A*xave)/norm(b-A*x0))")
-    end
+    AB = A*B
+    c = (B'*AB)\(B'*b)
+
+    rc = b - AB*c
+
+    println("q = $s")
+    println("  norm(b-Ax) = $(norm(r))")
+    println("  norm(b-ABc) = $(norm(rc))")
+    println("  norm(b-ABc)/norm(b-Ax) = $(norm(rc)/norm(r))")
 end
