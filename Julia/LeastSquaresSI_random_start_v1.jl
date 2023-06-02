@@ -1,6 +1,7 @@
 using LinearAlgebra
 using SparseArrays
 using Random
+using Plots
 
 Random.seed!(1)
 
@@ -56,7 +57,7 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 1
+q = 4000
 h = 0.0004
 k = 50
 
@@ -75,10 +76,15 @@ ef = eigen(Symmetric(A2), 1:k+1)   #k smallest eigenvalues/vectors
 println("q = 0")
 println("  norm(r) = $(norm(b-A*x))")
 
-for s=1:q
-    global x, Y
+r = b - A*x
 
-    r = b - A*x
+r_nrm = zeros(q)
+rc_nrm = zeros(q)
+
+for s=1:q
+
+    global x, r, Y, r_nrm, rc_nrm
+
     x = x + h.*(A'*r)
 
     Y = Y - h.*(A2*Y)
@@ -92,10 +98,17 @@ for s=1:q
     AB = A*B
     c = AB\b
 
+    r = b - A*x
     rc = b - AB*c
+
+    r_nrm[s] = norm(r)
+    rc_nrm[s] = norm(rc)
 
     println("q = $s")
     println("  norm(b-Ax) = $(norm(r))")
     println("  norm(b-ABc) = $(norm(rc))")
     println("  norm(b-ABc)/norm(b-Ax) = $(norm(rc)/norm(r))")
 end
+
+plot([1:q], log.(r_nrm))
+plot!([1:q], log.(rc_nrm))
