@@ -1,8 +1,9 @@
 using LinearAlgebra
 using SparseArrays
 using Random
+using Plots
 
-include("compress.jl")
+Random.seed!(1)
 
 # function user_sparse_matvec(x::Array{Float64})
 #
@@ -29,7 +30,9 @@ include("compress.jl")
 
 n = 10000
 λ = @. 10 + (1:n)
-A = triu(rand(n,n),1) + diagm(λ)
+# A = triu(rand(n,n),1) + diagm(λ)
+A = randn(n,n) + diagm(λ)
+A2 = A'*A
 b = rand(n)
 
 # N = 16
@@ -45,20 +48,20 @@ b = rand(n)
 # b = A * x
 
 
-xtrue = A\b
+xtrue = A2\b
 x0 = zeros(n)
 
-d = 10
-m = 1000
+d = 100
 
-Random.seed!(1)
-
-r0 = b.-A*x0
+r0 = b.-A2*x0
 x = copy(x0)
 r = copy(r0)
 
 B = zeros(Float64,n,d-1)
 AB = zeros(Float64,n,d-1)
+
+r_nrm = zeros(d)
+r_nrm[1] = norm(r)
 
 println("k = 0")
 println("  norm(r) = $(norm(r))")
@@ -71,7 +74,7 @@ for k=2:d
 
         # println("pass2")
 
-        AB[:,k-1] = A*B[:,k-1]
+        AB[:,k-1] = A2*B[:,k-1]
         z = AB[:,1:k-1]\r
 
         # println(norm(AB[:,1:k-1]*z - r0))
@@ -82,14 +85,18 @@ for k=2:d
         x = x + q
 
         # pivotal_compress(q,m)
-        r = b.-A*x
+        r = b.-A2*x
         # r = r0.-A*q
         # r = AB[:,k-1]
         # r = r.-AB[:,1:k-1]*z
 
+        r_nrm[k] = norm(r)
+
         println("k = $k")
-        println("  norm(r) = $(norm(r0-A*(x-x0)))")
-        println("  norm(r)/norm(b) = $(norm(b-A*x)/norm(b))")
+        println("  norm(r) = $(norm(r0-A2*(x-x0)))")
+        println("  norm(r)/norm(b) = $(norm(b-A2*x)/norm(b))")
         println("  cond(B,2) = $(cond(B[:,1:k-1]))")
 
 end
+
+plot([1:d], log.(r_nrm))

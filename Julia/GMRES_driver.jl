@@ -1,8 +1,9 @@
 using LinearAlgebra
 using SparseArrays
 using Random
+using Plots
 
-include("compress.jl")
+Random.seed!(1)
 
 # function user_sparse_matvec(x::Array{Float64})
 #
@@ -27,9 +28,11 @@ include("compress.jl")
 # b = randn(n)
 # b = b./norm(b)
 
-n = 10000
+n = 1000
 λ = @. 10 + (1:n)
-A = triu(rand(n,n),1) + diagm(λ)
+# A = triu(rand(n,n),1) + diagm(λ)
+A = randn(n,n) + diagm(λ)
+A2 = A'*A
 b = rand(n)
 
 # N = 64
@@ -45,7 +48,7 @@ b = rand(n)
 # b = A * x
 
 
-xtrue = A\b
+xtrue = A2\b
 
 d = 5
 
@@ -68,7 +71,7 @@ for k=1:d
 
     x = copy(B[:,k])
 
-    x = A*x
+    x = A2*x
 
     AB[:,k] = x
 

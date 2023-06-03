@@ -33,7 +33,7 @@ Random.seed!(1)
 # A = triu(rand(n,n),1) + diagm(λ)
 # b = rand(n)
 
-n = 1000
+n = 10000
 # λ = @. 10 + (1:n)
 λ = zeros(n)
 # λ = n*ones(n)
@@ -58,8 +58,8 @@ b = randn(n)
 xtrue = A\b
 
 q = 4000
-h = 0.0004
-k = 50
+h = 0.00004
+k = 100
 
 x0 = zeros(Float64,n)
 
@@ -67,11 +67,11 @@ x = copy(x0)
 
 Y = randn(n,k)
 
-ef = eigen(Symmetric(A2), n:n)
-@show (1.0 .- h.*(ef.values))
-
-ef = eigen(Symmetric(A2), 1:k+1)   #k smallest eigenvalues/vectors
-@show (1.0 .- h.*(ef.values))
+# ef = eigen(Symmetric(A2), n:n)
+# @show (1.0 .- h.*(ef.values))
+#
+# ef = eigen(Symmetric(A2), 1:k+1)   #k smallest eigenvalues/vectors
+# @show (1.0 .- h.*(ef.values))
 
 println("q = 0")
 println("  norm(r) = $(norm(b-A*x))")
