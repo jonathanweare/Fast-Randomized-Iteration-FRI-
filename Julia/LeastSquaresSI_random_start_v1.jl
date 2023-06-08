@@ -33,7 +33,7 @@ Random.seed!(1)
 # A = triu(rand(n,n),1) + diagm(λ)
 # b = rand(n)
 
-n = 10000
+n = 1000
 # λ = @. 10 + (1:n)
 λ = zeros(n)
 # λ = n*ones(n)
@@ -57,9 +57,9 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 4000
-h = 0.00004
-k = 100
+q = 10000
+h = 0.0004
+k = 10
 
 x0 = zeros(Float64,n)
 
@@ -98,8 +98,8 @@ for s=1:q
     AB = A*B
     c = AB\b
 
-    r = b - A*x
-    rc = b - AB*c
+    r = b .- A*x
+    rc = b .- AB*c
 
     r_nrm[s] = norm(r)
     rc_nrm[s] = norm(rc)
