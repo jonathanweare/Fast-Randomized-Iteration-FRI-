@@ -32,7 +32,7 @@ Random.seed!(1)
 # A = triu(rand(n,n),1) + diagm(λ)
 # b = rand(n)
 
-n = 1000
+n = 10000
 λ = @. 10 + (1:n)
 # λ = zeros(n)
 # λ = n*ones(n)
@@ -56,8 +56,8 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 3
-h = 0.001
+q = 4000
+h = 0.0001
 k = 20
 
 x0 = zeros(Float64,n)
@@ -66,14 +66,17 @@ x = copy(x0)
 
 Y = randn(n,k)
 
-ef = eigen(Symmetric(A), n:n)
-@show (1.0 .- h.*(ef.values))
-
-ef = eigen(Symmetric(A), 1:k+1)   #k smallest eigenvalues/vectors
-@show (1.0 .- h.*(ef.values))
+# ef = eigen(Symmetric(A), n:n)
+# @show (1.0 .- h.*(ef.values))
+#
+# ef = eigen(Symmetric(A), 1:k+1)   #k smallest eigenvalues/vectors
+# @show (1.0 .- h.*(ef.values))
 
 println("q = 0")
 println("  norm(r) = $(norm(b-A*x))")
+
+r_nrm = zeros(q)
+rc_nrm = zeros(q)
 
 for s=1:q
     global x, Y
@@ -97,8 +100,14 @@ for s=1:q
 
     rc = b - AB*c
 
+    r_nrm[s] = norm(r)
+    rc_nrm[s] = norm(rc)
+
     println("q = $s")
-    println("  norm(b-Ax) = $(norm(r))")
-    println("  norm(b-ABc) = $(norm(rc))")
-    println("  norm(b-ABc)/norm(b-Ax) = $(norm(rc)/norm(r))")
+    println("  norm(b-Ax) = $(r_nrm[s])")
+    println("  norm(b-ABc) = $(rc_nrm[s])")
+    println("  norm(b-ABc)/norm(b-Ax) = $(rc_nrm[s]/r_nrm[s])")
 end
+
+plot([1:q], log.(r_nrm))
+plot!([1:q], log.(rc_nrm))
