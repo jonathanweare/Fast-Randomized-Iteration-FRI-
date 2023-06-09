@@ -33,14 +33,14 @@ Random.seed!(1)
 # A = triu(rand(n,n),1) + diagm(λ)
 # b = rand(n)
 
-n = 10000
+n = 1000
 λ = @. 10 + (1:n)
 # λ = zeros(n)
 # λ = n*ones(n)
 # λ[1] = 10
 # A = triu(rand(n,n),1) + diagm(λ)
-A = diagm(λ)
-# A = randn(n,n) + diagm(λ)
+# A = diagm(λ)
+A = randn(n,n) + diagm(λ)
 # A = (A+A') ./2
 # A = A'*A
 b = randn(n)
@@ -60,7 +60,7 @@ b = randn(n)
 xtrue = A\b
 
 q = 1000
-h = 0.0001
+h = 0.001
 k = 10
 
 x0 = zeros(Float64,n)
