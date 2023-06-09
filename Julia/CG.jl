@@ -50,43 +50,51 @@ b = rand(n)
 
 xtrue = A2\b
 
-d = 1000
+q = 4000
 
 
-x = copy(b)
+x = zeros(n)
+r = b .- A2*x
+p = copy(r)
 
-r_nrm = zeros(d+1)
-r_nrm[1] = norm(b)
+r_nrm = zeros(q+1)
+r_nrm[1] = norm(r)
 
-B = zeros(Float64,n,d)
-AB = zeros(Float64,n,d)
+# B = zeros(Float64,n,d)
+# AB = zeros(Float64,n,d)
 
-for k=1:d
-    global x, B, AB, r_nrm
 
-    B[:,k] = x
-    if k>1
-        w = B[:,1:k-1]\x
-        B[:,k] = B[:,k] - B[:,1:k-1]*w
-    end
-    nrm = norm(B[:,k])
-    B[:,k] = B[:,k]./nrm
+# for i = 1:length(b)
+#     Ap = A * p;
+#     alpha = rsold / (p' * Ap);
+#     x = x + alpha * p;
+#     r = r - alpha * Ap;
+#     rsnew = r' * r;
+#     if sqrt(rsnew) < 1e-10
+#         break
+#     end
+#     p = r + (rsnew / rsold) * p;
+#     rsold = rsnew;
+# end
 
-    x = copy(B[:,k])
 
-    x = A2*x
+for k=1:q
+    global x, r, p, r_nrm
 
-    AB[:,k] = x
+    Ap = A2*p
 
-    y = AB\b
+    alpha = r_nrm[k]^2 / (p'*Ap)
 
-    r = b .- AB*y
+    x = x .+ alpha.*p
+    r = r .- alpha.*Ap
 
     r_nrm[k+1] = norm(r)
+
+    p = r .+ ((r_nrm[k+1]/r_nrm[k])^2).*p
 
     println("k = $k")
     println("  norm(r) = $(r_nrm[k+1])")
     println("  norm(r)/norm(b) = $(r_nrm[k+1]/r_nrm[1])")
 end
 
-plot([1:d+1], log.(r_nrm))
+plot([1:q+1], log.(r_nrm))
