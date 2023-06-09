@@ -1,6 +1,7 @@
 using LinearAlgebra
 using SparseArrays
 using Random
+using Plots
 
 Random.seed!(1)
 
@@ -38,8 +39,10 @@ n = 10000
 # λ = n*ones(n)
 # λ[1] = 10
 # A = triu(rand(n,n),1) + diagm(λ)
-A = randn(n,n) + diagm(λ)
-# A = A1'*A1
+A = diagm(λ)
+# A = randn(n,n) + diagm(λ)
+# A = (A+A') ./2
+# A = A'*A
 b = randn(n)
 
 # N = 32
@@ -56,9 +59,9 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 4000
+q = 1000
 h = 0.0001
-k = 20
+k = 10
 
 x0 = zeros(Float64,n)
 
