@@ -66,7 +66,6 @@ k = 20
 x0 = zeros(Float64,n)
 
 x = copy(x0)
-r = b .- A*x
 
 Y = randn(n,k)
 
@@ -77,32 +76,43 @@ Y = randn(n,k)
 # @show (1.0 .- h.*(ef.values))
 
 println("q = 0")
-println("  norm(r) = $(norm(r))")
+println("  norm(r) = $(norm(b-A*x))")
 
 r_nrm = zeros(q)
+rc_nrm = zeros(q)
+AB = zeros(n,k+1)
+AB[:,1:k] = A*Y
 
 for s=1:q
-    global x, Y, r
+    global x, Y, AB
 
-    Q, R = qr(hcat(Y,r))
+    r = b - A*x
+    x = x + h.*r
+
+    Y = Y - h.*AB[:,1:k]
+
+    Q, R = qr(hcat(Y,x))
 
     B = Matrix(Q)
 
     Y = B[:,1:k]
 
     AB = A*B
-    c = (B'*AB)\(B'*r)
+    c = (B'*AB)\(B'*b)
 
     # AB = A1*B
     # c = AB\b
-    x = x .+ B*c
-    r = r .- AB*c
-    Y = Y .- h.*AB[:,1:k]
+
+    rc = b - AB*c
 
     r_nrm[s] = norm(r)
+    rc_nrm[s] = norm(rc)
 
     println("q = $s")
     println("  norm(b-Ax) = $(r_nrm[s])")
+    println("  norm(b-ABc) = $(rc_nrm[s])")
+    println("  norm(b-ABc)/norm(b-Ax) = $(rc_nrm[s]/r_nrm[s])")
 end
 
 plot([1:q], log.(r_nrm))
+plot!([1:q], log.(rc_nrm))
