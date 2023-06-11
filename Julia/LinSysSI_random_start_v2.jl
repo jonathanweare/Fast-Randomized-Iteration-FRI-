@@ -59,9 +59,9 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 2000
+q = 10000
 h = 0.0001
-k = 20
+k = 50
 
 x0 = zeros(Float64,n)
 

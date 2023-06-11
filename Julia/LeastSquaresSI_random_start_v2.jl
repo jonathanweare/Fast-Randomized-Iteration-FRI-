@@ -79,37 +79,31 @@ r = b - A*x
 
 r_nrm = zeros(q)
 rc_nrm = zeros(q)
-AB = zeros(n,k+1)
-AB[:,1:k] = A*Y
 
 for s=1:q
 
-    global x, r, Y, AB
+    global x, r, Y
 
-    x = x + h.*(A'*r)
-
-    Y = Y - h.*(A'*AB[:,1:k])
-
-    Q, R = qr(hcat(Y,x))
+    Q, R = qr(hcat(Y,A'*r))
 
     B = Matrix(Q)
 
     Y = B[:,1:k]
 
     AB = A*B
-    c = AB\b
+    c = AB\r
 
-    r = b - A*x
-    rc = b - AB*c
+    x = x .+ B*c
+
+    r = r .- AB*c
+
+    Y = Y - h.*(A'*AB[:,1:k])
 
     r_nrm[s] = norm(r)
-    rc_nrm[s] = norm(rc)
 
     println("q = $s")
     println("  norm(b-Ax) = $(norm(r))")
-    println("  norm(b-ABc) = $(norm(rc))")
-    println("  norm(b-ABc)/norm(b-Ax) = $(norm(rc)/norm(r))")
+    println("  norm(b-Ax) = $(norm(b .- A*x))")
 end
 
 plot([1:q], log.(r_nrm))
-plot!([1:q], log.(rc_nrm))
