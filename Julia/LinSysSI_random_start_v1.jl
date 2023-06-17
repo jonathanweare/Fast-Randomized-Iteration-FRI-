@@ -3,7 +3,7 @@ using SparseArrays
 using Random
 using Plots
 
-Random.seed!(1)
+Random.seed!(2)
 
 # function user_sparse_matvec(x::Array{Float64})
 #
@@ -57,10 +57,9 @@ b = randn(n)
 # b = A * x
 
 
-xtrue = A\b
 
 q = 2000
-h = 0.0001
+h = 1.0/(10.0 + n)
 k = 20
 
 x0 = zeros(Float64,n)
@@ -83,6 +82,8 @@ rc_nrm = zeros(q)
 AB = zeros(n,k+1)
 AB[:,1:k] = A*Y
 
+b_nrm = norm(b)
+
 for s=1:q
     global x, Y, AB
 
@@ -98,15 +99,16 @@ for s=1:q
     Y = B[:,1:k]
 
     AB = A*B
-    c = (B'*AB)\(B'*b)
+    # c = (B'*AB)\(B'*b)
+    c = AB\b
 
     # AB = A1*B
     # c = AB\b
 
     rc = b - AB*c
 
-    r_nrm[s] = norm(r)
-    rc_nrm[s] = norm(rc)
+    r_nrm[s] = norm(r)/b_nrm
+    rc_nrm[s] = norm(rc)/b_nrm
 
     println("q = $s")
     println("  norm(b-Ax) = $(r_nrm[s])")

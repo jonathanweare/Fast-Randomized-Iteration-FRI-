@@ -84,7 +84,7 @@ b_nrm = norm(b)
 for s=1:q
     global x, Y, r
 
-    Q, R = qr(hcat(Y,r))
+    Q, R = qr(hcat(Y,x))
 
     B = Matrix(Q)
 
@@ -92,12 +92,12 @@ for s=1:q
 
     AB = A*B
     # c = (B'*AB)\(B'*r)
-    c = AB\r
+    c = AB\b
 
     # AB = A1*B
     # c = AB\b
-    x = x .+ B*c
-    r = r .- AB*c
+    x = B*c
+    r = b .- AB*c
     Y = Y .- h.*AB[:,1:k]
 
     r_nrm[s] = norm(r)/b_nrm
