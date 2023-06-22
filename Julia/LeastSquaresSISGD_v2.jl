@@ -2,6 +2,7 @@ using LinearAlgebra
 using SparseArrays
 using Random
 using Plots
+using StatsBase
 
 Random.seed!(1)
 
@@ -56,9 +57,10 @@ b = randn(n)
 
 xtrue = A\b
 
-q = 10000
+q = 100000
 h = 0.0004
 k = 50
+d = 10
 
 x0 = zeros(Float64,n)
 
@@ -72,8 +74,6 @@ Y = randn(n,k)
 # ef = eigen(Symmetric(I-h*A'*A), (n-k-1):n)   #k smallest eigenvalues/vectors
 # @show (1-ef.values[1])/(1-ef.values[end])
 
-return
-
 println("q = 0")
 println("  norm(r) = $(norm(b-A*x))")
 
@@ -84,26 +84,28 @@ rc_nrm = zeros(q)
 
 b_nrm = norm(b)
 
+
 for s=1:q
 
-    global x, r, Y
+    global x, r, Y, Yave
 
-    Q, R = qr(hcat(Y,A'*r))
+    smpl = sample((1:n), d, replace=false, ordered=true)
+    Sr = b[smpl] - A[smpl,:]*x
+
+    Q, R = qr(hcat(Y,A'[:,smpl]*Sr))
 
     B = Matrix(Q)
 
     Y = B[:,1:k]
 
-    AB = A*B
-    c = AB\r
+    SAB = A[smpl,:]*B
+    c = SAB\Sr
 
     x = x .+ B*c
 
-    r = r .- AB*c
+    Y = Y - h.*(A'[:,smpl]*SAB[:,1:k])
 
-    Y = Y - h.*(A'*AB[:,1:k])
-
-    r_nrm[s] = norm(r)/b_nrm
+    r_nrm[s] = norm(b-A*x)/b_nrm
 
     println("q = $s")
     println("  norm(b-Ax) = $(r_nrm[s])")
