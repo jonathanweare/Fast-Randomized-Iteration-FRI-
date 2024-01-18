@@ -5,9 +5,16 @@ using Plots
 
 Random.seed!(1)
 
+plt1 = plot()
+plt2 = plot()
+plt3 = plot()
+plt4 = plot()
+
 for m = 1:1
 
-    n = 10*
+    global plt1, plt2, plt3, plt4
+
+    n = 10*2^m
 
     p = zeros(n)
     sup = zeros(n-1)
@@ -74,11 +81,12 @@ for m = 1:1
 
 
 
-    p1[m] = plot([1:n], T)
-    p2[m] = plot([1:n], log.(Q))
-    p3[m] = plot([1:n], log.(ravarT))
-    p4[m] = plot([1:n], log.(ravarQ))
+    plt1!([1:n], T)
+    plt2!([1:n], log.(Q))
+    plt3!([1:n], log.(ravarT))
+    plt4!([1:n], log.(ravarQ))
+
 
 end
 
-plot(p1[1],p2[1],p3[1],p4[1], layout=(4,1))
+plot(plt1,plt2,plt3,plt4, layout=(4,1))
