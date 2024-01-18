@@ -2,13 +2,14 @@ using LinearAlgebra
 using SparseArrays
 using Random
 using Plots
+# pyplot()
 
 Random.seed!(1)
 
-plt1 = plot(ylabel="time", yscale=:log10, minorgrid=true, xlabel="(i-0.5)/n")
-plt2 = plot(ylabel="probability", yscale=:log10, minorgrid=true, xlabel="(i-0.5)/n")
-plt3 = plot(ylabel="(relative avar)/n^3", xlabel="(i-0.5)/n", minorgrid=true)
-plt4 = plot(xlabel="(i-0.5)/n", minorgrid=true, ylabel="(relative avar)/n^3")
+plt1 = plot(ylabel="time", yscale=:log10, minorgrid=true)
+plt2 = plot(ylabel="probability", yscale=:log10, minorgrid=true)
+plt3 = plot(ylabel="(relative avar)/n^3", minorgrid=true)
+plt4 = plot(minorgrid=true, ylabel="(relative avar)/n^3")
 
 for m = 1:3
 
@@ -81,15 +82,17 @@ for m = 1:3
 
 
 
-    plt1 = plot!(plt1, x[2:n-1], T[2:n-1], legend=:none, lw=2)
-    plt2 = plot!(plt2, x[2:n-1], Q[2:n-1], legend=:none, lw=2)
-    plt3 = plot!(plt3, x[2:n-1], ravarT[2:n-1], label="n=$(n)", lw=2)
-    plt4 = plot!(plt4, x[2:n-1], ravarQ[2:n-1], label="n=$(n)", lw=2)
+    plt1 = plot!(plt1, x[2:n-1], T[2:n-1], legend=:none, lw=4)
+    plt2 = plot!(plt2, x[2:n-1], Q[2:n-1], legend=:none, lw=4)
+    plt3 = plot!(plt3, x[2:n-1], ravarT[2:n-1], label="n=$(n)", lw=4, legendfont=font(14))
+    plt4 = plot!(plt4, x[2:n-1], ravarQ[2:n-1], label="n=$(n)", lw=4, legendfont=font(14))
 
 end
 
-pT = plot(plt1,plt3, layout=(1,2), plot_title="Mean First Passage Time")
+pT = plot(plt1,plt3, layout=(1,2), size=(1200,400), guidefont=font(14), margin=8*Plots.mm,
+xlabelfont=font(14), ytickfonts=font(14), xtickfonts=font(14), plot_title="Mean First Passage Time", xlabel="(i-0.5)/n")
 savefig(pT, "avarTplot.pdf")
 
-pQ = plot(plt2,plt4, layout=(1,2), plot_title="Committor")
+pQ = plot(plt2,plt4, layout=(1,2), size=(1200,400), guidefont=font(14), margin=8*Plots.mm,
+xlabelfont=font(14), ytickfonts=font(14), xtickfonts=font(14), plot_title="Committor", xlabel="(i-0.5)/n")
 savefig(pQ, "avarQplot.pdf")
