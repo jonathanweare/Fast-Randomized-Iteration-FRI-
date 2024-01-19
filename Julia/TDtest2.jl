@@ -5,23 +5,23 @@ using Distributions
 using Plots
 # pyplot()
 
-Random.seed!(2)
+Random.seed!(1)
 
-plt1 = plot(ylabel="time", yscale=:log10, minorgrid=true)
-plt2 = plot(ylabel="probability", yscale=:log10, minorgrid=true)
+plt1 = plot(title="Mean First Passage Time", ylabel="l_2 error", xlabel="iteration count", yscale=:log10, minorgrid=true)
+plt2 = plot(title="Committor", ylabel="l_2 error", xlabel="iteration count", yscale=:log10, minorgrid=true)
 plt3 = plot()
 # plt3 = plot(ylabel="(relative avar)/n^3", minorgrid=true)
 # plt4 = plot(minorgrid=true, ylabel="(relative avar)/n^3")
 
 for d = 1:3
 
-    nitr = 10000
+    nitr = 2000
 
     global plt1, plt2, plt3, plt4
 
     alpha = 1.0
 
-    n = 10*2^(d-1)
+    n = 10*2^d
     # n = 10
 
     M = 0.1*n^2
@@ -34,9 +34,9 @@ for d = 1:3
     x = ((1:n).-0.5)./n
 
     p = exp.(n.*(cospi.(4 .*x).+1)./(4*pi))
-    sup[1:n-1] = 1 ./ (3 .*(exp.(n .* ( cospi.( 4 .* x[1:n-1] ) .- cospi.( 4 .* x[2:n] ) ) ./ (4*pi) ) .+ 1))
+    sup[1:n-1] = 1 ./ (2 .*(exp.(n .* ( cospi.( 4 .* x[1:n-1] ) .- cospi.( 4 .* x[2:n] ) ) ./ (4*pi) ) .+ 1))
     # sup[1:n-1] = 1 ./ (p[1:n-1] ./ p[2:n] .+ 1)
-    sub[1:n-1] = 1 ./ (3 .*(1 .+ exp.(n .* ( cospi.( 4 .* x[2:n] ) .- cospi.( 4 .* x[1:n-1] ) ) ./ (4*pi) )))
+    sub[1:n-1] = 1 ./ (2 .*(1 .+ exp.(n .* ( cospi.( 4 .* x[2:n] ) .- cospi.( 4 .* x[1:n-1] ) ) ./ (4*pi) )))
     # sub[1:n-1] = 1 ./ (1 .+ p[2:n] ./ p[1:n-1])
     dd[1] = 1 - sup[1]
     dd[2:n-1] = 1 .- sup[2:n-1] .- sub[1:n-2]
@@ -127,7 +127,11 @@ for d = 1:3
 
     ABigEigs = eigen(ABig)
 
+
+
+
     TBig = rand(n-1,2)
+    TBig[1,1] = 1
     TBig[1,2] = 0
     # TBig[2:n-1,1] = rT[2:n-1]
 
@@ -148,26 +152,41 @@ for d = 1:3
 
     for m = 1:(nitr-1)
         TBig = ABig*TBig
-        TBig[:,1] = TBig[:,1]/TBig[1,1]
+        TBig[:,1] = TBig[:,1]./TBig[1,1]
         TBig[:,2] = TBig[:,2]./norm(TBig[:,2])
 
-        C1 = TBig'*ABig*TBig
-        C0 = TBig'*TBig
-        CEigs = eigen(C1,C0)
+        u = TBig[2:n-1,1]
+        res = zeros(n-2)
+        res = rT[2:n-1] .- A[2:n-1,2:n-1]*u
+        w = TBig[2:n-1,2]
 
-        TSI = TBig*CEigs.vectors[:,2]
-        TSI = TSI./TSI[1]
+        c = dot(w,res)
+        z = dot(w,A[2:n-1,2:n-1]*w)
+
+        # println(c," ",z)
+
+        u = u .+ (c/z).*w
+
+        # C1 = TBig'*ABig*TBig
+        # C0 = TBig'*TBig
+        # CEigs = eigen(C1,C0)
+        #
+        # TSI = TBig*CEigs.vectors[:,2]
+        # TSI = TSI./TSI[1]
         TRich = TBig[:,1]
         TRich = TRich./TRich[1]
 
         eTRich[m+1] = norm(TRich[2:n-1]-T[2:n-1])
-        eTSI[m+1] = norm(TSI[2:n-1]-T[2:n-1])
+        # eTSI[m+1] = norm(TSI[2:n-1]-T[2:n-1])
+        eTSI[m+1] = norm( u - T[2:n-1] )
+
+        # println(eTRich[m+1]," ", eTSI[m+1])
 
     end
 
 
-    plt1 = plot!(plt1, (0:nitr-1), eTRich, lw=3)
-    plt1 = plot!(plt1, (0:nitr-1), eTSI, lw=3)
+    plt1 = plot!(plt1, (0:nitr-1), eTRich, lc=Int(2^(d-1)), lw=4)
+    plt1 = plot!(plt1, (0:nitr-1), eTSI, lc=Int(2^(d-1)), ls=:dot, lw=4)
 
     # println()
 
@@ -176,7 +195,7 @@ for d = 1:3
     ABig[2:n-1,1] = alpha .* rQ[2:n-1]
     ABig[2:n-1,2:n-1] = (1-alpha)*I + alpha .* P[2:n-1,2:n-1]
 
-    ABigEigs = eigen(ABig)
+    # ABigEigs = eigen(ABig)
 
     # println(ABigEigs.values)
     # println()
@@ -187,6 +206,7 @@ for d = 1:3
     # println()
 
     QBig = rand(n-1,2)
+    QBig[1,1] = 1
     QBig[1,2] = 0
     # QBig[2:n-1,1] = rQ[2:n-1]
 
@@ -207,26 +227,40 @@ for d = 1:3
 
     for m = 1:(nitr-1)
         QBig = ABig*QBig
-        QBig[:,1] = QBig[:,1]/QBig[1,1]
+        QBig[:,1] = QBig[:,1]./QBig[1,1]
         QBig[:,2] = QBig[:,2]./norm(QBig[:,2])
 
-        C1 = QBig'*ABig*QBig
-        C0 = QBig'*QBig
-        CEigs = eigen(C1,C0)
+        u = QBig[2:n-1,1]
+        res = rQ[2:n-1] .- A[2:n-1,2:n-1]*u
+        w = QBig[2:n-1,2]
 
-        QSI = QBig*CEigs.vectors[:,2]
-        QSI = QSI./QSI[1]
+        c = dot(w,res)
+        z = dot(w,A[2:n-1,2:n-1]*w)
+
+        # println(c," ",z)
+
+        u = u .+ (c/z).*w
+
+        # C1 = QBig'*ABig*QBig
+        # C0 = QBig'*QBig
+        # CEigs = eigen(C1,C0)
+        #
+        # QSI = QBig*CEigs.vectors[:,2]
+        # QSI = QSI./QSI[1]
         QRich = QBig[:,1]
         QRich = QRich./QRich[1]
 
         eQRich[m+1] = norm(QRich[2:n-1]-Q[2:n-1])
-        eQSI[m+1] = norm(QSI[2:n-1]-Q[2:n-1])
+        # eQSI[m+1] = norm(QSI[2:n-1]-Q[2:n-1])
+        eQSI[m+1] = norm( u - Q[2:n-1] )
+        # println(eQSI[m+1])
+
 
     end
 
 
-    plt2 = plot!(plt2, (0:nitr-1), eQRich, lw=4)
-    plt2 = plot!(plt2, (0:nitr-1), eQSI, lw=4)
+    plt2 = plot!(plt2, (0:nitr-1), eQRich, lc=Int(2^d), lw=4)
+    plt2 = plot!(plt2, (0:nitr-1), eQSI, lc=Int(2^d),ls=:dash, lw=4)
 
     # plt1 = plot!(plt1, x[2:n-1], T[2:n-1], legend=:none, lw=4)
     # plt2 = plot!(plt2, x[2:n-1], Q[2:n-1], legend=:none, lw=4)
