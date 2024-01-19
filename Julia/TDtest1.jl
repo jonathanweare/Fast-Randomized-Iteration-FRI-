@@ -24,7 +24,6 @@ for m = 1:3
 
     x = ((1:n).-0.5)./n
 
-
     p = exp.(n.*(cospi.(4 .*x).+1)./(4*pi))
     sup[1:n-1] = 1 ./ (exp.(n .* ( cospi.( 4 .* x[1:n-1] ) .- cospi.( 4 .* x[2:n] ) ) ./ (4*pi) ) .+ 1)
     # sup[1:n-1] = 1 ./ (p[1:n-1] ./ p[2:n] .+ 1)
@@ -43,7 +42,6 @@ for m = 1:3
     invA[1,1] = 1
     invA[n,n] = 1
 
-
     rT = ones(n)
     rT[1] = 0
     rT[n] = 0
@@ -58,7 +56,6 @@ for m = 1:3
     Q = zeros(n)
     Q[n] = 1
     Q[2:n-1] = A[2:n-1,2:n-1]\rQ[2:n-1]
-
 
     ravarT = zeros(n)
     ravarQ = zeros(n)
@@ -79,8 +76,6 @@ for m = 1:3
         ravarT[i] /= T[i]*T[i]*n*n
         ravarQ[i] /= Q[i]*Q[i]*n*n
     end
-
-
 
     plt1 = plot!(plt1, x[2:n-1], T[2:n-1], legend=:none, lw=4)
     plt2 = plot!(plt2, x[2:n-1], Q[2:n-1], legend=:none, lw=4)
