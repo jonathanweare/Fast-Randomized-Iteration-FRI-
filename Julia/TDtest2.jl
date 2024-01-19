@@ -3,13 +3,14 @@ using SparseArrays
 using Random
 using Distributions
 using Plots
+using StatsPlots; ; gr(dpi=600)
 # pyplot()
 
 Random.seed!(1)
 
-plt1 = plot(title="Mean First Passage Time", ylabel="l_2 error", xlabel="iteration count", yscale=:log10, minorgrid=true)
-plt2 = plot(title="Committor", ylabel="l_2 error", xlabel="iteration count", yscale=:log10, minorgrid=true)
-plt3 = plot()
+plt1 = plot(title="Mean First Passage Time", ylabel="l_2 error", yscale=:log10, minorgrid=true)
+plt2 = plot(title="Committor", ylabel="l_2 error", yscale=:log10, minorgrid=true)
+plt3 = plot(framestyle=:none, background_color=:transparent, ylabel=:none)
 # plt3 = plot(ylabel="(relative avar)/n^3", minorgrid=true)
 # plt4 = plot(minorgrid=true, ylabel="(relative avar)/n^3")
 
@@ -185,8 +186,8 @@ for d = 1:3
     end
 
 
-    plt1 = plot!(plt1, (0:nitr-1), eTRich, lc=Int(2^(d-1)), lw=4)
-    plt1 = plot!(plt1, (0:nitr-1), eTSI, lc=Int(2^(d-1)), ls=:dot, lw=4)
+    plt1 = plot!(plt1, (0:nitr-1), eTRich, lc=Int(2^(d-1)), lw=4, legend=:none)
+    plt1 = plot!(plt1, (0:nitr-1), eTSI, lc=Int(2^(d-1)), ls=:dot, lw=4, legend=:none)
 
     # println()
 
@@ -259,8 +260,14 @@ for d = 1:3
     end
 
 
-    plt2 = plot!(plt2, (0:nitr-1), eQRich, lc=Int(2^d), lw=4)
-    plt2 = plot!(plt2, (0:nitr-1), eQSI, lc=Int(2^d),ls=:dash, lw=4)
+    plt2 = plot!(plt2, (0:nitr-1), eQRich, lc=Int(2^(d-1)), lw=4,background_color_legend = RGBA(1.0,1.0,1.0,0.7),
+    label="n=$(n)", legendfont=font(14), legend=:topright)
+    plt2 = plot!(plt2, (0:nitr-1), eQSI, lc=Int(2^(d-1)),ls=:dot, lw=4,  label=:none)
+
+    # plt3 = plot!(plt3, (-1:-1)',(-1:-1)', lc=Int(2^(d-1)), lw=4,  label="n=$(n), Richardson",
+    # legendfont=font(14), legend=:topleft, margin=:none)
+    # plt3 = plot!(plt3, (-1:-1)',(-1:-1)', lc=Int(2^(d-1)),ls=:dot, lw=4, label="n=$(n), Subspace Iteration",
+    # legendfont=font(14), legend=:topleft, margin=:none)
 
     # plt1 = plot!(plt1, x[2:n-1], T[2:n-1], legend=:none, lw=4)
     # plt2 = plot!(plt2, x[2:n-1], Q[2:n-1], legend=:none, lw=4)
@@ -269,7 +276,11 @@ for d = 1:3
 
 end
 
-plot(plt1)
+plt = plot(plt1, plt2, size=(1200,400), layout=(1,2), guidfont=font(14), margin=8*Plots.mm,  xlabel="iteration count",
+xlabelfont=font(14), ylabelfont=font(14), ytickfonts=font(14), xtickfonts=font(14))
+
+savefig(plt, "iterconvergence.pdf")
+
 
 # pT = plot(plt1,plt3, layout=(1,2), size=(1200,400), guidefont=font(14), margin=8*Plots.mm,
 # xlabelfont=font(14), ytickfonts=font(14), xtickfonts=font(14), plot_title="Mean First Passage Time", xlabel="(i-0.5)/n")
