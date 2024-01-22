@@ -8,13 +8,16 @@ using StatsPlots; ; gr(dpi=600)
 
 Random.seed!(1)
 
-plt1 = plot(title="Mean First Passage Time", ylabel="l_2 error", yscale=:log10, minorgrid=true)
-plt2 = plot(title="Committor", ylabel="l_2 error", yscale=:log10, minorgrid=true)
-plt3 = plot(framestyle=:none, background_color=:transparent, ylabel=:none)
+# plt1 = plot(title="Mean First Passage Time", ylabel="l_2 error", yscale=:log10, minorgrid=true)
+# plt2 = plot(title="Committor", ylabel="l_2 error", yscale=:log10, minorgrid=true)
+# plt3 = plot(framestyle=:none, background_color=:transparent, ylabel=:none)
 # plt3 = plot(ylabel="(relative avar)/n^3", minorgrid=true)
 # plt4 = plot(minorgrid=true, ylabel="(relative avar)/n^3")
 
-for d = 1:1
+plt1 = plot()
+plt2 = plot()
+
+for d = 2:2
 
     nitr = 2000
 
@@ -25,7 +28,8 @@ for d = 1:1
     n = 10*2^d
     # n = 10
 
-    m = 10
+    m = 100000000
+    nouts = 0
 
     M = 0.1*n^2
 
@@ -66,13 +70,61 @@ for d = 1:1
     # plt1 = plot!(plt1, x[2:n-1], T[2:n-1], lw=4 )
     # plt2 = plot!(plt2, x[2:n-1], Q[2:n-1], lw=4 )
 
+    QTD = rand(n)
+    QTD[1] = 0
+    QTD[n] = 1
+
+    QTSD = rand(n)
+    QTSD[1] = 0
+    QTSD[n] = 1
+
+    WTD = rand(n)
+    WTD[1] = 0
+    WTD[n] = 0
+
+    eQTD = zeros(m)
+    eQTSD = zeros(m)
+
     for k = 1:m
         J = sample((2:n-1))
-        K = sample((1:n),Vector(P[J,:]))
-        println(J," ",K)
+        K = wsample((1:n),Vector(P[J,:]))
+
+        # alpha = 1.0/k
+        alpha = k^(-0.6)
+        
+        if J != K
+            # I - alpha*(I-P)
+            QTD[J] -= alpha * (QTD[J]-QTD[K])
+            WTD[J] -= alpha * (WTD[J]-WTD[K])
+        end
+
+        res = rQ[2:n-1] .- A[2:n-1,2:n-1]*QTD[2:n-1]
+        c = dot(WTD[2:n-1],res)
+        z = dot(WTD[2:n-1],A[2:n-1,2:n-1]*WTD[2:n-1])
+
+        QTSD[2:n-1] = QTD[2:n-1] .+ (c/z) .* WTD[2:n-1]
+
+        # QTD = QTSD
+
+        if k%1000 == 1
+            # println(c/z)
+
+            eQTD[Int((k-1)/1000)+1] = norm(QTD - Q)
+            eQTSD[Int((k-1)/1000)+1] = norm(QTSD - Q)
+            # println(Int((k-1)/100)+1, " ",eQTD[Int((k-1)/100)+1], " ", eQTSD[Int((k-1)/100)+1])
+            nouts = Int((k-1)/1000)+1
+        end
     end
 
+    # plt1 = plot!(plt1, x, Q )
+    # plt1 = plot!(plt1, x, QTD)
 
+    plt1 = plot!(plt1, x, Q )
+    plt1 = plot!(plt1, x, QTSD)
+
+
+    plt2 = plot!(plt2,  eQTD[1:nouts], label="eQTD", yscale=:log10 )
+    plt2 = plot!(plt2,  eQTSD[1:nouts], label="eQTSD", yscale=:log10 )
 
     # RP = zeros(n,n)
     # for k = 1:n
@@ -276,6 +328,8 @@ for d = 1:1
     # plt4 = plot!(plt4, x[2:n-1], ravarQ[2:n-1], label="n=$(n)", lw=4, legendfont=font(14))
 
 end
+
+plot( plt2 )
 
 # plt = plot(plt1, plt2, size=(1200,400), layout=(1,2), guidfont=font(14), margin=8*Plots.mm,  xlabel="iteration count",
 # xlabelfont=font(14), ylabelfont=font(14), ytickfonts=font(14), xtickfonts=font(14))
