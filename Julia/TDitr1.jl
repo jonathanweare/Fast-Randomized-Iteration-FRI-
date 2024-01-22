@@ -28,7 +28,7 @@ for d = 2:2
     n = 10*2^d
     # n = 10
 
-    m = 100000000
+    m = 1000000
     nouts = 0
 
     M = 0.1*n^2
@@ -89,8 +89,8 @@ for d = 2:2
         J = sample((2:n-1))
         K = wsample((1:n),Vector(P[J,:]))
 
-        # alpha = 1.0/k
-        alpha = k^(-0.6)
+        alpha = 0.01
+        # alpha = k^(-0.6)
         
         if J != K
             # I - alpha*(I-P)
@@ -107,12 +107,13 @@ for d = 2:2
         # QTD = QTSD
 
         if k%1000 == 1
-            # println(c/z)
-
-            eQTD[Int((k-1)/1000)+1] = norm(QTD - Q)
-            eQTSD[Int((k-1)/1000)+1] = norm(QTSD - Q)
-            # println(Int((k-1)/100)+1, " ",eQTD[Int((k-1)/100)+1], " ", eQTSD[Int((k-1)/100)+1])
             nouts = Int((k-1)/1000)+1
+
+            println(nouts, " ", c," ", z, " ", norm(WTD) )
+
+            eQTD[nouts] = norm(QTD - Q)
+            eQTSD[nouts] = norm(QTSD - Q)
+            # println(Int((k-1)/100)+1, " ",eQTD[Int((k-1)/100)+1], " ", eQTSD[Int((k-1)/100)+1])
         end
     end
 

@@ -16,7 +16,7 @@ plt3 = plot(framestyle=:none, background_color=:transparent, ylabel=:none)
 
 for d = 1:3
 
-    nitr = 2000
+    nitr = 20
 
     global plt1, plt2, plt3, plt4
 
@@ -131,19 +131,19 @@ for d = 1:3
 
 
 
-    TBig = rand(n-1,2)
-    TBig[1,1] = 1
-    TBig[1,2] = 0
+    TBig = rand(n-2,2)
+    TSI = zeros(n)
+    TRich = zeros(n)
+
+    # TBig[1,1] = 1
+    # TBig[1,2] = 0
     # TBig[2:n-1,1] = rT[2:n-1]
 
-    C1 = TBig'*ABig*TBig
-    C0 = TBig'*TBig
-    CEigs = eigen(C1,C0)
-
-    TSI = TBig*CEigs.vectors[:,2]
-    TSI = TSI./TSI[1]
-    TRich = TBig[:,1]
-    TRich = TRich./TRich[1]
+    AW = A[2:n-1,2:n-1]*TBig
+        
+    v = (TBig'*AW) \ (TBig'*rT[2:n-1])
+    TSI[2:n-1] = TBig*v
+    TRich[2:n-1] = TBig[:,1]
 
     eTRich = zeros(nitr)
     eTSI = zeros(nitr)
@@ -151,22 +151,29 @@ for d = 1:3
     eTRich[1] = norm(TRich[2:n-1]-T[2:n-1])
     eTSI[1] = norm(TSI[2:n-1]-T[2:n-1])
 
+    println(eTRich[1], " ", eTSI[1])
+
     for m = 1:(nitr-1)
-        TBig = ABig*TBig
-        TBig[:,1] = TBig[:,1]./TBig[1,1]
-        TBig[:,2] = TBig[:,2]./norm(TBig[:,2])
+        TBig -= alpha .* AW
+        TBig[:,1] += alpha .* rT[2:n-1]
 
-        u = TBig[2:n-1,1]
-        res = zeros(n-2)
-        res = rT[2:n-1] .- A[2:n-1,2:n-1]*u
-        w = TBig[2:n-1,2]
+        # u = TBig[2:n-1,1]
+        # res = zeros(n-2)
+        # res = rT[2:n-1] .- A[2:n-1,2:n-1]*u
+        # w = TBig[2:n-1,2]
 
-        c = dot(w,res)
-        z = dot(w,A[2:n-1,2:n-1]*w)
+        # c = dot(w,res)
+        # z = dot(w,A[2:n-1,2:n-1]*w)
 
-        # println(c," ",z)
+        # # println(c," ",z)
 
-        u = u .+ (c/z).*w
+        # u = u .+ (c/z).*w
+
+        AW = A[2:n-1,2:n-1]*TBig
+        
+        v = (TBig'*AW) \ (TBig'*rT[2:n-1])
+
+        TSI[2:n-1] = TBig*v
 
         # C1 = TBig'*ABig*TBig
         # C0 = TBig'*TBig
@@ -174,14 +181,13 @@ for d = 1:3
         #
         # TSI = TBig*CEigs.vectors[:,2]
         # TSI = TSI./TSI[1]
-        TRich = TBig[:,1]
-        TRich = TRich./TRich[1]
+        TRich[2:n-1] = TBig[:,1]
 
         eTRich[m+1] = norm(TRich[2:n-1]-T[2:n-1])
         # eTSI[m+1] = norm(TSI[2:n-1]-T[2:n-1])
-        eTSI[m+1] = norm( u - T[2:n-1] )
+        eTSI[m+1] = norm( TSI[2:n-1] - T[2:n-1] )
 
-        # println(eTRich[m+1]," ", eTSI[m+1])
+        println(eTRich[m+1]," ", eTSI[m+1])
 
     end
 
@@ -231,16 +237,20 @@ for d = 1:3
         QBig[:,1] = QBig[:,1]./QBig[1,1]
         QBig[:,2] = QBig[:,2]./norm(QBig[:,2])
 
-        u = QBig[2:n-1,1]
-        res = rQ[2:n-1] .- A[2:n-1,2:n-1]*u
-        w = QBig[2:n-1,2]
+        # u = QBig[2:n-1,1]
+        # res = rQ[2:n-1] .- A[2:n-1,2:n-1]*u
+        # w = QBig[2:n-1,2]
 
-        c = dot(w,res)
-        z = dot(w,A[2:n-1,2:n-1]*w)
+        # c = dot(w,res)
+        # z = dot(w,A[2:n-1,2:n-1]*w)
 
-        # println(c," ",z)
+        # u = u .+ (c/z).*w
 
-        u = u .+ (c/z).*w
+        AW = A[2:n-1,2:n-1]*QBig[2:n-1,:]
+        
+        v = (QBig[2:n-1,:]'*AW) \ (QBig[2:n-1,:]'*rQ[2:n-1])
+
+        u = QBig[2:n-1,:]*v
 
         # C1 = QBig'*ABig*QBig
         # C0 = QBig'*QBig
@@ -276,10 +286,10 @@ for d = 1:3
 
 end
 
-plt = plot(plt1, plt2, size=(1200,400), layout=(1,2), guidfont=font(14), margin=8*Plots.mm,  xlabel="iteration count",
+plot(plt1, plt2, size=(1200,400), layout=(1,2), guidfont=font(14), margin=8*Plots.mm,  xlabel="iteration count",
 xlabelfont=font(14), ylabelfont=font(14), ytickfonts=font(14), xtickfonts=font(14))
 
-savefig(plt, "iterconvergence.pdf")
+# savefig(plt, "iterconvergence.pdf")
 
 
 # pT = plot(plt1,plt3, layout=(1,2), size=(1200,400), guidefont=font(14), margin=8*Plots.mm,
