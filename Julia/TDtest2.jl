@@ -16,7 +16,7 @@ plt3 = plot(framestyle=:none, background_color=:transparent, ylabel=:none)
 
 for d = 1:3
 
-    nitr = 20
+    nitr = 2000
 
     global plt1, plt2, plt3, plt4
 
@@ -121,29 +121,30 @@ for d = 1:3
     # # println(efA.values[1]," ",dot(Wex,A[2:n-1,2:n-1]*Wex))
     # # println(efP.values)
 
-    ABig = zeros(n-1,n-1)
-    ABig[1,1] = 1
-    ABig[2:n-1,1] = alpha .* rT[2:n-1]
-    ABig[2:n-1,2:n-1] = (1-alpha)*I + alpha .* P[2:n-1,2:n-1]
-
-    ABigEigs = eigen(ABig)
 
 
-
-
-    TBig = rand(n-2,2)
+    # TBig = rand(n-2,2)
     TSI = zeros(n)
     TRich = zeros(n)
 
-    # TBig[1,1] = 1
-    # TBig[1,2] = 0
-    # TBig[2:n-1,1] = rT[2:n-1]
-
-    AW = A[2:n-1,2:n-1]*TBig
+    # AW = A[2:n-1,2:n-1]*TBig
         
-    v = (TBig'*AW) \ (TBig'*rT[2:n-1])
-    TSI[2:n-1] = TBig*v
-    TRich[2:n-1] = TBig[:,1]
+    # v = (TBig'*AW) \ (TBig'*rT[2:n-1])
+    # v = AW \ rT[2:n-1]
+    # TSI[2:n-1] = TBig*v
+    # TRich[2:n-1] = TBig[:,1]
+
+
+
+    B = rand(n-1,2)
+    B[1,1] = 1
+    B[1,2] = 0
+
+    AB = A[2:n-1,2:n-1]*B[2:n-1,:]
+
+    v = AB \ rT[2:n-1]
+    TSI[2:n-1] = B[2:n-1,:]*v
+    TRich[2:n-1] = B[2:n-1,1]
 
     eTRich = zeros(nitr)
     eTSI = zeros(nitr)
@@ -151,11 +152,17 @@ for d = 1:3
     eTRich[1] = norm(TRich[2:n-1]-T[2:n-1])
     eTSI[1] = norm(TSI[2:n-1]-T[2:n-1])
 
-    println(eTRich[1], " ", eTSI[1])
-
     for m = 1:(nitr-1)
-        TBig -= alpha .* AW
-        TBig[:,1] += alpha .* rT[2:n-1]
+        # TBig = TBig .- alpha .* AW
+        # TBig[:,1] = TBig[:,1] .+ alpha .* rT[2:n-1]
+
+        B[2:n-1,:] = B[2:n-1,:] .- alpha .* AB
+        B[2:n-1,1] = B[2:n-1,1] .+ alpha .* rT[2:n-1]
+
+        # B[:,2] = (qr(B).Q)[:,2]
+
+        # agl = dot(TBig[:,1],TBig[:,2])/( sqrt(1+norm(TBig[:,1])^2)*norm(TBig[:,2]) )
+        # println(agl)
 
         # u = TBig[2:n-1,1]
         # res = zeros(n-2)
@@ -169,25 +176,26 @@ for d = 1:3
 
         # u = u .+ (c/z).*w
 
-        AW = A[2:n-1,2:n-1]*TBig
+        # AW = A[2:n-1,2:n-1]*TBig
         
-        v = (TBig'*AW) \ (TBig'*rT[2:n-1])
+        # v = (TBig'*AW) \ (TBig'*rT[2:n-1])
+        # v = AW \ rT[2:n-1]
 
-        TSI[2:n-1] = TBig*v
+        AB = A[2:n-1,2:n-1]*B[2:n-1,:]
 
-        # C1 = TBig'*ABig*TBig
-        # C0 = TBig'*TBig
-        # CEigs = eigen(C1,C0)
-        #
-        # TSI = TBig*CEigs.vectors[:,2]
-        # TSI = TSI./TSI[1]
-        TRich[2:n-1] = TBig[:,1]
+        v = AB \ rT[2:n-1]
+        TSI[2:n-1] = B[2:n-1,:]*v
+        TRich[2:n-1] = B[2:n-1,1]
+
+        # TSI[2:n-1] = TBig*v
+
+        # TRich[2:n-1] = TBig[:,1]
 
         eTRich[m+1] = norm(TRich[2:n-1]-T[2:n-1])
         # eTSI[m+1] = norm(TSI[2:n-1]-T[2:n-1])
         eTSI[m+1] = norm( TSI[2:n-1] - T[2:n-1] )
 
-        println(eTRich[m+1]," ", eTSI[m+1])
+        # println(eTRich[m+1]," ", eTSI[m+1])
 
     end
 
@@ -197,34 +205,20 @@ for d = 1:3
 
     # println()
 
-    ABig = zeros(n-1,n-1)
-    ABig[1,1] = 1
-    ABig[2:n-1,1] = alpha .* rQ[2:n-1]
-    ABig[2:n-1,2:n-1] = (1-alpha)*I + alpha .* P[2:n-1,2:n-1]
 
-    # ABigEigs = eigen(ABig)
 
-    # println(ABigEigs.values)
-    # println()
-    # println(ABigEigs.vectors[:,n-1])
-    #
-    # u = ABigEigs.vectors[2:n-1,n-1] ./ ABigEigs.vectors[1,n-1]
-    # println(norm(u .- Q[2:n-1]))
-    # println()
+    QBig = rand(n-2,2)
+    QSI = zeros(n)
+    QSI[n] = 1
+    QRich = zeros(n)
+    QRich[n] = 1
 
-    QBig = rand(n-1,2)
-    QBig[1,1] = 1
-    QBig[1,2] = 0
-    # QBig[2:n-1,1] = rQ[2:n-1]
-
-    C1 = QBig'*ABig*QBig
-    C0 = QBig'*QBig
-    CEigs = eigen(C1,C0)
-
-    QSI = QBig*CEigs.vectors[:,2]
-    QSI = QSI./QSI[1]
-    QRich = QBig[:,1]
-    QRich = QRich./QRich[1]
+    AW = A[2:n-1,2:n-1]*QBig
+        
+    # v = (QBig'*AW) \ (QBig'*rQ[2:n-1])
+    v = AW \ rQ[2:n-1]
+    QSI[2:n-1] = QBig*v
+    QRich[2:n-1] = QBig[:,1]
 
     eQRich = zeros(nitr)
     eQSI = zeros(nitr)
@@ -232,10 +226,19 @@ for d = 1:3
     eQRich[1] = norm(QRich[2:n-1]-Q[2:n-1])
     eQSI[1] = norm(QSI[2:n-1]-Q[2:n-1])
 
+
     for m = 1:(nitr-1)
-        QBig = ABig*QBig
-        QBig[:,1] = QBig[:,1]./QBig[1,1]
-        QBig[:,2] = QBig[:,2]./norm(QBig[:,2])
+        QBig = QBig .- alpha .* AW
+        QBig[:,1] = QBig[:,1] .+ alpha .* rQ[2:n-1]
+
+        # agl = dot(QBig[:,1],QBig[:,2])/( sqrt(1+norm(QBig[:,1])^2)*norm(QBig[:,2]) )
+        # println(agl)
+
+        # Q = qr(QBig).Q
+
+        # println(norm( QBig[:,1]./norm(QBig[:,1] )+ Q[:,1]) )
+
+        # QBig[:,2] = Q[:,2]
 
         # u = QBig[2:n-1,1]
         # res = rQ[2:n-1] .- A[2:n-1,2:n-1]*u
@@ -246,24 +249,18 @@ for d = 1:3
 
         # u = u .+ (c/z).*w
 
-        AW = A[2:n-1,2:n-1]*QBig[2:n-1,:]
+        AW = A[2:n-1,2:n-1]*QBig
         
-        v = (QBig[2:n-1,:]'*AW) \ (QBig[2:n-1,:]'*rQ[2:n-1])
+        v = (QBig'*AW) \ (QBig'*rQ[2:n-1])
+        # v = AW \ rQ[2:n-1]
 
-        u = QBig[2:n-1,:]*v
+        QSI[2:n-1] = QBig*v
 
-        # C1 = QBig'*ABig*QBig
-        # C0 = QBig'*QBig
-        # CEigs = eigen(C1,C0)
-        #
-        # QSI = QBig*CEigs.vectors[:,2]
-        # QSI = QSI./QSI[1]
-        QRich = QBig[:,1]
-        QRich = QRich./QRich[1]
+        QRich[2:n-1] = QBig[:,1]
 
         eQRich[m+1] = norm(QRich[2:n-1]-Q[2:n-1])
         # eQSI[m+1] = norm(QSI[2:n-1]-Q[2:n-1])
-        eQSI[m+1] = norm( u - Q[2:n-1] )
+        eQSI[m+1] = norm( QSI[2:n-1] - Q[2:n-1] )
         # println(eQSI[m+1])
 
 
